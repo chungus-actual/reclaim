@@ -1,0 +1,20 @@
+services:
+  reclaim:
+    build: .
+    container_name: reclaim
+    restart: unless-stopped
+    ports:
+      - "8892:8892"
+    env_file:                  # optional: settings can all be made in the app
+      - path: .env
+        required: false
+    environment:
+      - TZ=${TZ:-UTC}          # the nightly rebuild runs at RECLAIM_REFRESH_HOUR in this zone
+    volumes:
+      - ./config:/config       # database, cached snapshot, poster thumbnails
+      # Optional: mount your media READ-ONLY so reclaim can find files Plex doesn't index.
+      # Then map them in Settings → Disk walk (Plex folder → these container paths).
+      # - /mnt/user/media/Movies:/media/movies:ro
+      # - /mnt/user/media/TV:/media/tv:ro
+    # On Unraid, run as nobody:users so files in /config get the usual owner:
+    # user: "99:100"

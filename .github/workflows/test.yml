@@ -1,0 +1,18 @@
+name: test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+      - run: python tests/test_model.py
+      - run: python tests/test_downgrade.py
+      - run: python tests/test_settings.py
+      - run: python -c "import sys; sys.path.insert(0, 'backend'); import main"
+        env:
+          RECLAIM_DATA: /tmp/reclaim-ci
+      - run: node -e "new Function(require('fs').readFileSync('backend/static/app.js','utf8'))"

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reclaim</title>
+<meta name="description" content="Plex library space audit: what takes space, who watches it, and a drop list.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='6' width='16' height='20' rx='2' fill='%231c5cab'/%3E%3Crect x='20' y='6' width='10' height='9' rx='2' fill='%2386b6ef'/%3E%3Crect x='20' y='17' width='10' height='9' rx='2' fill='%23eb6834'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">reclaim<span class="sub" id="server"></span></div>
+  <nav class="tabs" aria-label="Views">
+    <button data-tab="library" class="on">Library</button>
+    <button data-tab="loose">Not in Plex</button>
+    <button data-tab="downgrades">Downgrades</button>
+    <button data-tab="log">Deleted</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+  <div class="status"><span id="built">loading…</span><button class="btn sm" id="refresh">Refresh</button></div>
+  <button class="btn drop-btn" id="dropToggle"><span class="dot" hidden></span>Drop list <b id="dropCount">0</b><span class="muted" id="dropBytes"></span></button>
+</header>
+
+<main>
+  <section class="card capacity" id="cap" aria-label="Array capacity" hidden>
+    <div>
+      <div class="hero-n" id="heroFree">–</div>
+      <div class="hero-l" id="heroSub"></div>
+    </div>
+    <div class="tiles" id="tiles"></div>
+    <div class="capbar-wrap"><div class="capbar" id="capbar" role="img"></div><div id="capmarks"></div></div>
+    <div class="legend caplegend" id="caplegend"></div>
+  </section>
+
+  <div id="tab-library">
+    <div class="card empty-card" id="libEmpty" hidden></div>
+    <div id="libBody" hidden>
+    <div class="filters" id="filters">
+      <span class="f"><span class="seg" id="fLib">
+        <button data-v="all" class="on">All</button><button data-v="movie">Movies</button><button data-v="show">TV</button>
+      </span></span>
+      <span class="f"><input type="search" id="fSearch" placeholder="Search titles" aria-label="Search titles"></span>
+      <label class="f">Not played in
+        <select id="fLast">
+          <option value="any">any time</option>
+          <option value="1">1+ year</option>
+          <option value="3">3+ years</option>
+          <option value="5">5+ years</option>
+          <option value="never">ever (never played)</option>
+          <option value="recent">— played within 1 year</option>
+        </select></label>
+      <label class="f">Viewers
+        <select id="fViewers">
+          <option value="any">any</option><option value="0">none</option><option value="1">≤ 1</option>
+          <option value="2">≤ 2</option><option value="3">≤ 3</option>
+        </select></label>
+      <label class="f">Added
+        <select id="fAdded">
+          <option value="any">any time</option><option value="1">1+ year ago</option>
+          <option value="2">2+ years ago</option><option value="5">5+ years ago</option>
+        </select></label>
+      <label class="f">Size
+        <select id="fSize">
+          <option value="0">any</option><option value="1">≥ 1 GB</option><option value="5">≥ 5 GB</option>
+          <option value="20">≥ 20 GB</option><option value="100">≥ 100 GB</option>
+        </select></label>
+      <label class="f">Requested by <select id="fReq"><option value="any">anyone or no one</option></select></label>
+      <span class="f">Plays by <button class="btn sm lens-btn" id="lensBtn">Everyone</button></span>
+      <span class="f"><span class="seg" id="fCount" title="What counts as a play">
+        <button data-v="any" class="on">any play</button><button data-v="fin">finished</button>
+      </span></span>
+      <label class="f"><input type="checkbox" id="fHideKept" checked> hide kept</label>
+      <button class="btn sm ghost" id="fReset">Reset</button>
+    </div>
+    <div class="summary" id="summary"></div>
+    <div class="callout" id="notes" hidden></div>
+
+    <section class="grid">
+      <div class="card side">
+        <div>
+          <div class="card-h"><h3>Space by last played</h3><span class="note">tap to filter</span></div>
+          <div class="bars" id="byLast"></div>
+        </div>
+        <div>
+          <div class="card-h"><h3>Space by number of viewers</h3></div>
+          <div class="bars" id="byViewers"></div>
+        </div>
+        <div>
+          <div class="card-h"><h3>Space by who requested it</h3></div>
+          <div class="bars" id="byReq"></div>
+          <div class="legend sub-legend" id="reqLegend"></div>
+        </div>
+      </div>
+      <div class="card map">
+        <div class="card-h">
+          <h3>Every title, sized by disk use</h3>
+          <span class="note">click for detail · shift-click to select</span>
+          <span class="spacer"></span>
+          <div class="legend" id="mapLegend"></div>
+        </div>
+        <div class="mapbox"><canvas id="treemap" aria-label="Treemap of titles sized by bytes on disk, shaded by time since last played. The titles table below has the same data."></canvas></div>
+      </div>
+    </section>
+
+    <section class="card scatter">
+      <div class="card-h">
+        <h3>Size vs. time since anyone played it</h3>
+        <span class="note">drag to select a region · log size scale</span>
+      </div>
+      <div class="scatter-panels">
+        <div><div class="panel-t" id="scMovieT">Movies</div><canvas id="scMovie" aria-label="Scatter of movies: size against years since last played"></canvas></div>
+        <div><div class="panel-t" id="scShowT">TV</div><canvas id="scShow" aria-label="Scatter of TV shows: size against years since last played"></canvas></div>
+      </div>
+    </section>
+
+    <section class="card table">
+      <div class="card-h"><h3>Titles</h3><span class="note" id="tableNote"></span></div>
+      <div class="tscroll"><div class="tinner">
+        <div class="thead" id="thead"></div>
+        <div class="tbody" id="tbody"><div id="tspacer"></div></div>
+      </div></div>
+    </section>
+    </div>
+  </div>
+
+  <div id="tab-loose" hidden></div>
+  <div id="tab-downgrades" hidden></div>
+  <div id="tab-settings" hidden></div>
+  <div id="tab-log" hidden></div>
+</main>
+
+<div class="selbar" id="selbar" hidden>
+  <span id="selText"></span>
+  <button class="btn sm add" id="selAdd">Add to drop list</button>
+  <button class="btn sm" id="selKeep">Keep</button>
+  <button class="btn sm" id="selClear">Clear</button>
+</div>
+
+<aside class="drawer" id="detail" aria-label="Title detail"></aside>
+<aside class="drawer" id="drop" aria-label="Drop list"></aside>
+<div class="modal" id="modal" hidden></div>
+<div class="pop" id="lensPop" hidden></div>
+<div class="tip" id="tip" hidden></div>
+
+<script src="/static/d3.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
