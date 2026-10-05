@@ -111,7 +111,7 @@ def destructive(request: Request):
 
 # ------------------------------------------------------------------ refresh
 async def refresh(reason="manual"):
-    if S.status["refreshing"] or C.needs_setup():
+    if C.DEMO or S.status["refreshing"] or C.needs_setup():
         return
     S.status.update(refreshing=True, started=time.time(), phase="starting", last_error=None)
     try:
@@ -163,6 +163,15 @@ async def startup():
     store.init()
     cfg = C.summary()
     log.info("config: %s", cfg)
+    if C.DEMO:
+        S.src = Sources()
+        S.walk, S.raw = _load_gz(WALK_FILE), _load_gz(RAW_FILE)
+        if S.raw:
+            await asyncio.to_thread(rebuild)
+            log.info("demo mode: made-up library from %s, read-only, no services contacted", C.DATA_DIR)
+        else:
+            log.warning("demo mode but no demo data: run  python tools/demo_data.py --data %s", C.DATA_DIR)
+        return
     if C.needs_setup():
         log.info("not set up yet: open the page and connect Plex in Settings")
     elif not C.PLEX_TOKEN:
@@ -222,6 +231,8 @@ async def api_settings():
 @app.post("/api/settings")
 async def api_settings_save(request: Request):
     guard(request)
+    if C.DEMO:
+        raise HTTPException(403, "this is the demo: settings can't be changed")
     body = await request.json()
     before = C.effective()
     res = settings.save(body.get("values") or {}, body.get("clear") or [])
@@ -342,10 +353,35 @@ async def api_walk(request: Request):
     return {"files": len(walk["files"]), "unindexed_groups": len(S.model.unindexed) if S.model else None}
 
 
+def _demo_poster(key: str) -> str:
+    """A plain poster for made-up titles: the title on a colour taken from its key."""
+    from xml.sax.saxutils import escape
+    m = S.model
+    t = (m.titles.get(key) if m else None) or (m.titles.get(m.seasons[key]["show"]) if m and key in m.seasons else None) or {}
+    words, lines = str(t.get("title") or "Untitled").split(), [""]
+    for w in words:
+        if len(lines[-1]) + len(w) > 11 and lines[-1]:
+            lines.append("")
+        lines[-1] = (lines[-1] + " " + w).strip()
+    hue = int(hashlib.sha1(key.encode()).hexdigest()[:4], 16) % 360
+    y0 = 180 - (len(lines) - 1) * 17
+    text = "".join(f'<text x="120" y="{y0 + i * 34}" text-anchor="middle">{escape(l)}</text>' for i, l in enumerate(lines[:4]))
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 360" width="240" height="360">'
+            f'<defs><linearGradient id="g" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="hsl({hue},42%,40%)"/>'
+            f'<stop offset="1" stop-color="hsl({(hue + 35) % 360},48%,14%)"/></linearGradient></defs>'
+            f'<rect width="240" height="360" fill="url(#g)"/><circle cx="196" cy="62" r="88" fill="hsla({(hue + 180) % 360},60%,70%,.12)"/>'
+            f'<g font-family="Georgia,serif" font-size="27" fill="#f4efe6">{text}</g>'
+            f'<text x="120" y="318" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15" '
+            f'letter-spacing="3" fill="#f4efe6" opacity=".7">{escape(str(t.get("year") or ""))}</text></svg>')
+
+
 @app.get("/api/thumb")
 async def api_thumb(path: str, w: int = 240, h: int = 360):
     if not path.startswith("/library/metadata/"):
         raise HTTPException(400, "bad path")
+    if C.DEMO:
+        return Response(_demo_poster(path.split("/")[3]), media_type="image/svg+xml",
+                        headers={"Cache-Control": "public, max-age=604800"})
     f = THUMBS / (hashlib.sha1(f"{path}|{w}x{h}".encode()).hexdigest() + ".jpg")
     if not f.exists():
         try:

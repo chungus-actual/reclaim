@@ -142,6 +142,8 @@ def effective(saved=None):
 def reload():
     for key, value in effective().items():
         globals()[FIELDS[key][0]] = value
+    if DEMO:                      # demo data is look-don't-touch
+        globals()["READ_ONLY"] = True
 
 
 # ----------------------------------------------------------- password hashing
@@ -178,7 +180,7 @@ def client_id():
 
 
 def needs_setup():
-    return not PLEX_URL
+    return not PLEX_URL and not DEMO
 
 
 def summary():
@@ -195,6 +197,7 @@ def summary():
         "read_only": READ_ONLY,
         "auth": auth_on(),
         "needs_setup": needs_setup(),
+        "demo": DEMO,
     }
 
 
@@ -205,5 +208,7 @@ UNRAID_URL = UNRAID_API_KEY = AUTH_USER = ""
 AUTH_PASSWORD = ""
 CAPACITY_PATHS, WALK_PATHS, DISPLAY_PATHS = [], [], []
 WALK_AFTER_REFRESH, READ_ONLY = True, False
+# RECLAIM_DEMO=1: serve the made-up library from tools/demo_data.py, read-only, talking to nothing
+DEMO = os.environ.get("RECLAIM_DEMO", "").strip().lower() in ("1", "true", "yes", "on")
 REFRESH_HOUR, STALE_HOURS = 4, 20
 reload()

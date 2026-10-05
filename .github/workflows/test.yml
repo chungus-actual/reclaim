@@ -12,6 +12,7 @@ jobs:
       - run: python tests/test_model.py
       - run: python tests/test_downgrade.py
       - run: python tests/test_settings.py
+      - run: python tests/test_demo.py
       - run: python -c "import sys; sys.path.insert(0, 'backend'); import main"
         env:
           RECLAIM_DATA: /tmp/reclaim-ci

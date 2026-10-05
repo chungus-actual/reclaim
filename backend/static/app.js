@@ -63,6 +63,7 @@ function fmtDate(ts) {
   return ts ? new Date(ts * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 }
 const fmtN = n => (n || 0).toLocaleString();
+const plural = (n, w, p) => `${fmtN(n)} ${n === 1 ? w : (p || w + 's')}`;
 const pct = (a, b) => (b ? (100 * a / b).toFixed(1) : '0') + '%';
 function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
@@ -234,10 +235,11 @@ function renderBuilt() {
   const s = STATUS;
   let txt = g ? `built ${fmtAgo(g) === 'today' ? new Date(g * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : fmtAgo(g)}` : '';
   if (CFG.needs_setup) txt = 'not connected';
+  if (CFG.demo) txt = 'demo data';
   if (s.refreshing) txt = `refreshing… ${s.phase || ''}`;
   else if (s.last_error) txt += ` · last refresh failed: ${s.last_error}`;
   $('#built').textContent = txt;
-  $('#refresh').disabled = !!s.refreshing || !!CFG.needs_setup;
+  $('#refresh').disabled = !!s.refreshing || !!CFG.needs_setup || !!CFG.demo;
 }
 
 /* --------------------------------------------------------------- capacity */
@@ -301,7 +303,7 @@ function renderCapacityBar(a, where, hasFree) {
   ];
   if (loose != null) tiles.push({ l: 'On disk, not in Plex', v: fmtB(loose), s: `walked ${fmtAgo(M.walk_at)}` });
   tiles.push({ l: 'Drop list', v: dropBytes ? fmtB(dropBytes) : '—', crit: dropBytes > 0,
-    s: !dropBytes ? 'nothing listed yet' : hasFree ? `→ ${fmtB(a.free + dropBytes)} free (${pct(a.free + dropBytes, a.total)})` : `${shortlist.length} items` });
+    s: !dropBytes ? 'nothing listed yet' : hasFree ? `→ ${fmtB(a.free + dropBytes)} free (${pct(a.free + dropBytes, a.total)})` : plural(shortlist.length, 'item') });
   fill($('#tiles'), ...tiles.map(t => h('div', { class: 'tile' },
     h('div', { class: 'l' }, t.l), h('div', { class: 'v' + (t.crit ? ' crit' : '') }, t.v), h('div', { class: 's' }, t.s))));
 }
@@ -315,7 +317,7 @@ function barRow({ label, bytes, count, max, color, on, onclick, stack, title }) 
   return h('button', { class: 'bar-row' + (on ? ' on' : ''), onclick, title },
     h('span', { class: 'lab' }, label),
     h('span', { class: 'track' }, track),
-    h('span', { class: 'val' }, fmtB(bytes), h('small', null, count != null ? `${fmtN(count)} titles` : '')));
+    h('span', { class: 'val' }, fmtB(bytes), h('small', null, count != null ? plural(count, 'title') : '')));
 }
 
 function renderSide() {
@@ -430,7 +432,7 @@ function drawMap() {
   for (const g of root.children) {
     MAP.groups.push(g);
     ctx.fillStyle = ink; ctx.font = '600 12px system-ui';
-    ctx.fillText(`${g.data.name} · ${fmtB(g.value)} · ${fmtN(g.children.length)} titles`, g.x0 + 2, g.y0 + 4);
+    ctx.fillText(`${g.data.name} · ${fmtB(g.value)} · ${plural(g.children.length, 'title')}`, g.x0 + 2, g.y0 + 4);
   }
   ctx.font = '11px system-ui';
   for (const leaf of root.leaves()) {
@@ -1044,7 +1046,7 @@ function renderSearch(box, job) {
 function renderPart(job, p, i, selKey) {
   const multi = job.parts.length > 1;
   const title = multi ? h('div', { class: 'dg-part-t' }, h('b', null, p.label),
-    p.ctx ? h('span', { class: 'muted' }, ` · now ${p.ctx.file_quality || '?'} ${fmtB(p.ctx.file_size)}${p.ctx.files != null ? ` · ${p.ctx.files} files` : ''}`) : null) : null;
+    p.ctx ? h('span', { class: 'muted' }, ` · now ${p.ctx.file_quality || '?'} ${fmtB(p.ctx.file_size)}${p.ctx.files != null ? ` · ${plural(p.ctx.files, 'file')}` : ''}`) : null) : null;
   if (p.status === 'pending') return h('div', { class: 'dg-part' }, title, h('div', { class: 'muted' }, 'queued'));
   if (p.status === 'searching') return h('div', { class: 'dg-part' }, title, h('div', { class: 'muted' }, 'searching indexers…'));
   if (p.status === 'error') return h('div', { class: 'dg-part' }, title, h('div', { class: 'callout' }, p.error));
@@ -1163,7 +1165,7 @@ function renderDrop() {
   fill(dr, 
     closeBtn(dr),
     h('h2', null, 'Drop list'),
-    h('div', { class: 'drop-sum' }, h('b', null, `${fmtN(shortlist.length)} items · ${fmtB(dropBytes)}`),
+    h('div', { class: 'drop-sum' }, h('b', null, `${plural(shortlist.length, 'item')} · ${fmtB(dropBytes)}`),
       a ? ` → array free goes from ${fmtB(a.free)} to ${fmtB(a.free + dropBytes)} (${pct(a.free + dropBytes, a.total)})` : ''),
     h('div', { class: 'callout info' }, 'Deleting goes through Plex (files removed from disk). If Radarr/Sonarr are connected, the matching item is unmonitored so it stays as a missing record and is never re-grabbed. Every delete is written to the Deleted tab.'),
     shortlist.length ? h('div', { class: 'drop-list' }, ...shortlist.map(r => h('div', { class: 'drop-item' },
@@ -1508,7 +1510,7 @@ async function renderLoose() {
     h('div', { class: 'card-h' }, h('h3', null, `On disk but not in Plex · ${fmtB(total)}`),
       h('span', { class: 'note' }, `walked ${fmtAgo(d.walk_at)} (${fmtDate(d.walk_at)})`), CFG.walk === 'local' ? walkBtn() : null),
     h('div', { class: 'cat-tiles' }, ...cats.map(([c, v]) => h('div', { class: 'tile' },
-      h('div', { class: 'l' }, v.label), h('div', { class: 'v' }, fmtB(v.bytes)), h('div', { class: 's' }, `${fmtN(v.files)} files`)))),
+      h('div', { class: 'l' }, v.label), h('div', { class: 'v' }, fmtB(v.bytes)), h('div', { class: 's' }, plural(v.files, 'file'))))),
     d.missing_on_disk ? h('div', { class: 'callout info' }, `${d.missing_on_disk} indexed files weren't seen by the walk — files deleted since the walk, a Disk walk folder mapping that doesn't cover them, or (over SMB) names Windows can't represent, which show up as 8.3 aliases like DR0ON7~D.`) : null,
     h('label', { class: 'f', style: 'margin-top:12px' }, h('input', { type: 'checkbox', onchange: e => { showSide = e.target.checked; paint(); } }), ' show sidecar-only folders (subs, nfo, art)'),
     body));
@@ -1519,7 +1521,7 @@ async function renderLog() {
   const rows = await get('/api/log');
   const freed = rows.filter(r => r.ok).reduce((s, r) => s + r.bytes, 0);
   fill(el, h('div', { class: 'card' },
-    h('div', { class: 'card-h' }, h('h3', null, `Deleted · ${fmtN(rows.filter(r => r.ok).length)} items · ${fmtB(freed)} freed`),
+    h('div', { class: 'card-h' }, h('h3', null, `Deleted · ${plural(rows.filter(r => r.ok).length, 'item')} · ${fmtB(freed)} freed`),
       h('span', { class: 'note' }, 'The record of what you had: title, size, files, who watched and who asked, at the moment it went.')),
     rows.length ? h('table', { class: 'mini' },
       h('tr', null, h('th', null, 'When'), h('th', null, 'What'), h('th', { class: 'n' }, 'Size'), h('th', null, 'Viewers then'),
@@ -1570,7 +1572,7 @@ async function pollStatus() {
 
 async function boot() {
   try { CFG = await get('/api/config'); } catch {}
-  if (CFG.read_only) document.title = 'Reclaim (read-only)';
+  if (CFG.read_only) document.title = CFG.demo ? 'Reclaim (demo)' : 'Reclaim (read-only)';
   if (CFG.needs_setup) showTab('settings'); else libEmpty();
   wireFilters();
   wireMap();
