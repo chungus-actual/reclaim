@@ -65,7 +65,7 @@ Open `http://localhost:8892`. The demo is an invented library of 150 movies and 
 | Detail drawer | Who played it and how much, a season table for TV, versions for movies, files Plex skipped in the same folder, request info. |
 | Drop list | Shortlist titles, seasons or single versions, see the total, and delete with a typed confirmation. |
 | Downgrade | Search Radarr or Sonarr for a smaller release (4K to 1080p, 1080p to 720p), pick one, and let the *arr swap it in. |
-| Not in Plex | Disc images and rips, interrupted transfers and other files on disk that Plex doesn't index. |
+| Not in Plex | Disc images and rips, interrupted transfers and other files on disk that Plex doesn't index. Search, filter by category, sort, and page through it. |
 | Downgrades and Deleted | Running and finished downgrades, and a permanent record of everything deleted: title, size, files, who watched it, who asked for it. |
 
 ## Requirements
@@ -169,7 +169,9 @@ library folder to where it appears inside Reclaim. The Plex folders are offered 
 **Browse** shows the container's folders. **Test** looks up a sample of Plex's own files at the mapped
 location, so a wrong mapping is caught before you save. Reclaim walks after each rebuild and lists
 everything Plex doesn't know about: disc images and rips, interrupted transfers (`.partial`, hidden temp
-files), video it didn't match, and sidecars.
+files), video it didn't match, and sidecars. Local extras Plex has indexed (a `Featurettes` folder,
+`-trailer` files and so on) count as in Plex: after each walk Reclaim asks Plex about the titles whose
+folders hold unmatched video, and each title's details list its extras.
 
 If the media isn't reachable from where Reclaim runs (for example a share only one Windows machine can
 read), run `tools/remote_walk.py` there instead. It posts the file list to Reclaim.

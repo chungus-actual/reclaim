@@ -64,7 +64,7 @@ def classify(path, size):
 class Model:
     """Everything the API serves, built in one pass. Immutable once built."""
 
-    def __init__(self, raw, walk=None, keep=frozenset()):
+    def __init__(self, raw, walk=None, keep=frozenset(), extras=None):
         t0 = time.time()
         self.generated = raw.get("fetched_at") or time.time()
         self.notes = list(raw.get("notes") or [])
@@ -73,6 +73,7 @@ class Model:
         self.server = raw.get("server") or {}
         self._users(raw)
         self._titles(raw)
+        self._extras(extras or {})
         self._arr(raw.get("arr") or {})
         self._requests(raw.get("requests") or [])
         self._plays(raw)
@@ -189,6 +190,24 @@ class Model:
             if folder:
                 self.folders[folder].add(k)
             self.lib_bytes[s["section"]] += t["size"]
+
+    # ------------------------------------------------------------ extras
+    def _extras(self, extras):
+        """Local extras Plex indexed (Featurettes/, *-trailer.mkv, ...), keyed by the title or
+        season they hang off. They aren't title bytes (a Plex delete of the title isn't known to
+        take them), but they are in Plex, so the walk mustn't call them unindexed."""
+        self.extra_files = {}      # file path -> title key
+        for t in self.titles.values():
+            t["extras"] = []
+        for parent, clips in extras.items():
+            key = self.seasons[parent]["show"] if parent in self.seasons else parent
+            if key not in self.titles:
+                continue           # title gone from Plex since the lookup, and its extras with it
+            for c in clips:
+                for path, size in c["files"]:
+                    if path not in self.files and path not in self.extra_files:
+                        self.extra_files[path] = key
+                        self.titles[key]["extras"].append((path, size, c.get("subtype") or "extra"))
 
     # --------------------------------------------------------------- arr
     def _arr(self, arr):
@@ -362,6 +381,8 @@ class Model:
         self.unindexed = []
         self.unindexed_by_cat = defaultdict(lambda: [0, 0])
         self.missing_on_disk = 0
+        self.extras_on_disk = [0, 0]     # files, bytes of Plex-indexed extras the walk saw
+        self.extra_owners = set()        # titles with video in their folder the index doesn't account for
         for t in self.titles.values():
             t["xbytes"] = 0
         if not walk:
@@ -379,10 +400,17 @@ class Model:
                 seen.add(path)
                 continue
             cat = classify(path, size)
-            self.unindexed_by_cat[cat][0] += 1
-            self.unindexed_by_cat[cat][1] += size
             head = path[len(root):].split("/", 1)
             folder = root + head[0] if len(head) > 1 else path
+            # decided before the extras check, so a lookup's answer can't change who gets asked next time
+            if cat in ("video", "disc", "other"):
+                self.extra_owners.update(self.folders.get(folder, ()))
+            if path in self.extra_files:
+                self.extras_on_disk[0] += 1
+                self.extras_on_disk[1] += size
+                continue
+            self.unindexed_by_cat[cat][0] += 1
+            self.unindexed_by_cat[cat][1] += size
             g = groups[folder]
             g["bytes"] += size if cat not in ("sidecar", "alias") else 0
             g["files"].append((path, size, cat))
@@ -402,6 +430,17 @@ class Model:
                                    "bytes": g["bytes"], "cats": dict(cats),
                                    "files": sorted(g["files"], key=lambda f: -f[1])})
         self.unindexed.sort(key=lambda g: -g["bytes"])
+
+    def extra_candidates(self):
+        """Plex keys to ask for local extras: titles whose folder holds video the index doesn't
+        account for, plus those shows' seasons so an extra Plex filed under a season isn't missed.
+        Plex only returns extras inside their parent's metadata, so asking about every title
+        would cost minutes per refresh (each movie drags in its online trailers too)."""
+        keys = set(self.extra_owners)
+        shows = {k for k in self.extra_owners if self.titles[k]["kind"] == "show"}
+        if shows:
+            keys.update(s["key"] for s in self.seasons.values() if s["show"] in shows)
+        return sorted(keys)
 
     # ----------------------------------------------------------- outputs
     def client(self):
@@ -467,7 +506,7 @@ class Model:
                                  "content", "genres", "folder", "ids", "xbytes")}
         out.update({"users": users, "recent": recent, "arr": t.get("arr"),
                     "requests": [dict(r, name=name(r["uid"]) if r["uid"] else r["by"]) for r in t["requests"]],
-                    "kept": key in self.keep,
+                    "kept": key in self.keep, "extras": sorted(t["extras"], key=lambda f: -f[1]),
                     "unindexed": next((g for g in self.unindexed if g["folder"] == t["folder"]), None)})
         if t["kind"] == "movie":
             out["versions"] = t["versions"]

@@ -903,6 +903,11 @@ async function openDetail(key) {
             onclick: async () => { await addToDrop([{ kind: 'version', title_key: key, media_id: v.id }]); openDetail(key); } }, '+ drop')));
       })));
   }
+  if (d.extras?.length) {
+    kids.push(h('h4', null, `Plex extras · ${fmtB(d.extras.reduce((s, f) => s + f[1], 0))}`));
+    kids.push(h('div', { class: 'muted', style: 'font-size:12px' }, 'Indexed by Plex as extras of this title; not counted in its size above.'));
+    kids.push(fileList(d.extras));
+  }
   if (d.unindexed) {
     kids.push(h('h4', null, `Not in Plex, same folder · ${fmtB(d.unindexed.bytes)}`));
     kids.push(h('div', { class: 'muted', style: 'font-size:12px' }, 'Plex delete leaves these behind. Remove them on the server.'));
@@ -1470,6 +1475,7 @@ async function saveSettings() {
 }
 
 /* ------------------------------------------------------------ other tabs */
+const LOOSE_PAGE = 200;
 function walkBtn() {
   return h('button', { class: 'btn sm', onclick: async e => { e.target.disabled = true; await post('/api/walk/run'); toast('Walking — the tab updates when it finishes'); } }, 'Walk now');
 }
@@ -1487,12 +1493,30 @@ async function renderLoose() {
           h('p', null, 'If the files are only reachable from another machine, run tools/remote_walk.py there; it posts the list here.'))));
     return;
   }
-  let showSide = false;
   const cats = Object.entries(d.categories).sort((a, b) => b[1].bytes - a[1].bytes);
+  const st = { q: '', cat: '', sort: 'size', side: false, shown: LOOSE_PAGE };
+  for (const g of d.groups) {
+    g._all = g.files.reduce((s, f) => s + f[1], 0);
+    g._hay = [g.folder, g.name || '', ...g.files.map(f => f[0].slice(g.folder.length))].join('\n').toLowerCase();
+  }
+  // the size a row shows and sorts by: its bytes in the chosen category, else what it costs
+  // (sidecar-only folders cost 0, so they show and sort by their sidecars instead)
+  const sizeOf = g => (st.cat ? g.cats[st.cat] || 0 : g.bytes || g._all);
+  const SORTS = {
+    size: (a, b) => sizeOf(b) - sizeOf(a),
+    files: (a, b) => b.files.length - a.files.length || sizeOf(b) - sizeOf(a),
+    name: (a, b) => a.folder.localeCompare(b.folder),
+  };
+  const head = h('div', { class: 'muted', style: 'margin:10px 0 2px' });
   const body = h('div');
   const paint = () => {
-    const groups = d.groups.filter(g => showSide || g.bytes > 0);
-    fill(body, ...groups.slice(0, 400).map(g => {
+    const q = st.q.trim().toLowerCase();
+    const groups = d.groups.filter(g => (st.cat ? st.cat in g.cats : st.side || g.bytes > 0) && (!q || g._hay.includes(q)))
+      .sort(SORTS[st.sort]);
+    const rest = groups.length - st.shown;
+    head.textContent = groups.length === d.groups.length ? plural(groups.length, 'folder') : `${fmtN(groups.length)} of ${plural(d.groups.length, 'folder')}`;
+    if (!groups.length) return fill(body, h('div', { class: 'empty' }, 'No folders match.'));
+    fill(body, ...groups.slice(0, st.shown).map(g => {
       const name = g.folder.split('/').pop();
       return h('details', { class: 'ugroup' },
         h('summary', null,
@@ -1500,10 +1524,25 @@ async function renderLoose() {
             g.title ? h('span', { class: 'muted' }, ' · Plex: ', h('a', { href: '#', onclick: e => { e.preventDefault(); openDetail(g.title); } }, g.name))
               : h('span', { class: 'badge crit', style: 'margin-left:6px' }, 'no Plex title in this folder'),
             h('div', { class: 'chips' }, ...Object.entries(g.cats).filter(([, b]) => b >= 1e6).map(([c, b]) => h('span', { class: 'badge' + (c === 'temp' ? ' crit' : '') }, `${c} ${fmtB(b)}`)))),
-          h('div', { class: 'num', style: 'text-align:right' }, fmtB(g.bytes))),
+          h('div', { class: 'num', style: 'text-align:right' }, fmtB(sizeOf(g)))),
         h('div', { class: 'files' }, fileList(g.files)));
-    }), groups.length > 400 ? h('div', { class: 'muted' }, `${groups.length - 400} more folders not shown`) : null);
+    }), rest > 0 ? h('div', { class: 'more-row' },
+      h('span', { class: 'muted' }, `Showing ${fmtN(st.shown)} of ${fmtN(groups.length)}`),
+      h('button', { class: 'btn sm', onclick: () => { st.shown += LOOSE_PAGE; paint(); } }, `Show ${fmtN(Math.min(LOOSE_PAGE, rest))} more`),
+      rest > LOOSE_PAGE ? h('button', { class: 'btn sm ghost', onclick: () => { st.shown = groups.length; paint(); } }, `Show all ${fmtN(groups.length)}`) : null) : null);
   };
+  const set = (k, v) => { st[k] = v; st.shown = LOOSE_PAGE; paint(); };
+  const sideBox = h('input', { type: 'checkbox', onchange: e => set('side', e.target.checked) });
+  const sideLabel = h('label', { class: 'f' }, sideBox, ' show sidecar-only folders (subs, nfo, art)');
+  const toolbar = h('div', { class: 'filters loose-filters' },
+    h('span', { class: 'f' }, h('input', { type: 'search', placeholder: 'Folder or file name', 'aria-label': 'Search folders and files',
+      oninput: e => set('q', e.target.value) })),
+    h('label', { class: 'f' }, 'Category ', h('select', { onchange: e => { sideLabel.hidden = !!e.target.value; set('cat', e.target.value); } },
+      h('option', { value: '' }, 'any'),
+      ...cats.map(([c, v]) => h('option', { value: c }, `${v.label} (${fmtN(v.files)})`)))),
+    h('label', { class: 'f' }, 'Sort ', h('select', { onchange: e => set('sort', e.target.value) },
+      h('option', { value: 'size' }, 'largest first'), h('option', { value: 'files' }, 'most files'), h('option', { value: 'name' }, 'folder name'))),
+    sideLabel);
   paint();
   const total = cats.filter(([c]) => c !== 'alias').reduce((s, [, v]) => s + v.bytes, 0);
   fill(el, h('div', { class: 'card' },
@@ -1512,8 +1551,8 @@ async function renderLoose() {
     h('div', { class: 'cat-tiles' }, ...cats.map(([c, v]) => h('div', { class: 'tile' },
       h('div', { class: 'l' }, v.label), h('div', { class: 'v' }, fmtB(v.bytes)), h('div', { class: 's' }, plural(v.files, 'file'))))),
     d.missing_on_disk ? h('div', { class: 'callout info' }, `${d.missing_on_disk} indexed files weren't seen by the walk — files deleted since the walk, a Disk walk folder mapping that doesn't cover them, or (over SMB) names Windows can't represent, which show up as 8.3 aliases like DR0ON7~D.`) : null,
-    h('label', { class: 'f', style: 'margin-top:12px' }, h('input', { type: 'checkbox', onchange: e => { showSide = e.target.checked; paint(); } }), ' show sidecar-only folders (subs, nfo, art)'),
-    body));
+    d.extras?.files ? h('div', { class: 'callout info' }, `Plex has indexed ${plural(d.extras.files, 'file')} (${fmtB(d.extras.bytes)}) as extras: featurettes, trailers, deleted scenes and the like. They're in Plex, so they aren't listed here; each title's details show its own.`) : null,
+    toolbar, head, body));
 }
 
 async function renderLog() {

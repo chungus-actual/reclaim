@@ -123,6 +123,34 @@ def test_walk():
     assert dict(m.unindexed_by_cat)["temp"][1] == 1 * GB
 
 
+def test_extras():
+    making = "/data/Movies/Beta (2005)/Featurettes/Making Beta.mkv"
+    blooper = "/data/TV/Show/Season 1/Bloopers-Short.avi"
+    orphan = "/data/Movies/Gamma (1990)/Featurettes/g.mkv"
+    walk = {"roots": ["/data/Movies", "/data/TV"], "files": [
+        ["/data/Movies/Beta (2005)/b.mkv", 5 * GB],
+        [making, 300 * 10**6],
+        ["/data/Movies/Beta (2005)/Featurettes/Making Beta.en.srt", 40_000],
+        ["/data/Movies/Beta (2005)/stray.mkv", 1 * GB],
+        [blooper, 200 * 10**6],
+        [orphan, 100 * 10**6],
+    ]}
+    before = Model(raw(), walk)
+    assert before.extra_candidates() == ["m2", "s1", "se1"], "titles with unaccounted video, plus the show's seasons"
+    assert making in {f[0] for g in before.unindexed for f in g["files"]}
+    extras = {"m2": [{"key": "c1", "title": "Making Beta", "subtype": "behindTheScenes", "files": [[making, 300 * 10**6]]}],
+              "se1": [{"key": "c2", "title": "Bloopers", "subtype": "short", "files": [[blooper, 200 * 10**6]]}],
+              "m9": [{"key": "c3", "title": "gone", "subtype": "trailer", "files": [[orphan, 100 * 10**6]]}]}
+    m = Model(raw(), walk, extras=extras)
+    left = {f[0] for g in m.unindexed for f in g["files"]}
+    assert making not in left and blooper not in left, "Plex-indexed extras aren't unindexed"
+    assert "/data/Movies/Beta (2005)/stray.mkv" in left and orphan in left, "unknown video and a deleted title's extra stay"
+    assert m.extras_on_disk == [2, 500 * 10**6]
+    assert m.titles["m2"]["xbytes"] == 1 * GB and m.titles["m2"]["size"] == 5 * GB, "extras are neither loose nor title bytes"
+    assert m.extra_candidates() == before.extra_candidates(), "a lookup's answer doesn't change who gets asked"
+    assert m.detail("s1")["extras"] == [(blooper, 200 * 10**6, "short")], "season-level extra belongs to the show"
+
+
 def test_classify():
     assert classify("/data/Movies/X/.X 2024.mkv.Frqk5C", 1) == "temp"
     assert classify("/data/TV/A/.fuse_hidden00006a0c00000004", 1) == "temp"

@@ -33,6 +33,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 RAW_FILE = C.DATA_DIR / "raw.json.gz"
 WALK_FILE = C.DATA_DIR / "walk.json.gz"
+EXTRAS_FILE = C.DATA_DIR / "extras.json.gz"
 THUMBS = C.DATA_DIR / "thumbs"
 THUMBS.mkdir(exist_ok=True)
 
@@ -61,6 +62,7 @@ async def basic_auth(request: Request, call_next):
 class State:
     raw = None
     walk = None
+    extras = None          # Plex-indexed local extras for the titles the walk flagged
     model = None
     client_cache = None    # (generated, bytes) of the serialized model
     src = None
@@ -91,7 +93,7 @@ def _load_gz(path):
 
 
 def rebuild():
-    S.model = Model(S.raw, S.walk, store.keep_keys())
+    S.model = Model(S.raw, S.walk, store.keep_keys(), S.extras)
     S.client_cache = None
     log.info("model built: %d titles, %d plays in %d ms", len(S.model.titles), len(S.model.plays), S.model.build_ms)
 
@@ -125,6 +127,8 @@ async def refresh(reason="manual"):
         store.record_capacity(raw.get("array"), sum(S.model.lib_bytes.values()), reason)
         if C.WALK_PATHS and C.WALK_AFTER_REFRESH:
             await walk_now()
+        else:
+            await resolve_extras()
         S.status.update(last_ok=time.time(), phase=None)
     except Exception as ex:
         log.exception("refresh failed")
@@ -155,7 +159,29 @@ async def walk_now():
     if S.raw:
         async with S.lock:
             await asyncio.to_thread(rebuild)
+        await resolve_extras()
     log.info("walked %d files in %ss", len(walk["files"]), walk["seconds"])
+
+
+async def resolve_extras():
+    """Ask Plex which unaccounted files in title folders are its local extras, then rebuild
+    if the answer changed. Only titles the walk flagged are asked (Model.extra_candidates)."""
+    if C.DEMO or not S.model or not S.walk:
+        return
+    keys = S.model.extra_candidates()
+    try:
+        found = await S.src.plex_extras(keys) if keys else {}
+    except Exception as ex:
+        log.warning("extras lookup for %d titles failed: %s", len(keys), ex)
+        return
+    if found == (S.extras or {}):
+        return
+    S.extras = found
+    await asyncio.to_thread(_save_gz, EXTRAS_FILE, found)
+    async with S.lock:
+        await asyncio.to_thread(rebuild)
+    log.info("extras: %d files under %d parents (asked about %d)", sum(len(c["files"]) for v in found.values() for c in v),
+             len(found), len(keys))
 
 
 @app.on_event("startup")
@@ -179,6 +205,7 @@ async def startup():
                     "and watch history needs the owner's token")
     S.src = Sources()
     S.walk = _load_gz(WALK_FILE)
+    S.extras = _load_gz(EXTRAS_FILE)
     S.raw = _load_gz(RAW_FILE)
     if S.raw:
         await asyncio.to_thread(rebuild)
@@ -329,6 +356,7 @@ async def api_unindexed():
     m = need_model()
     titles = m.titles
     return {"walk_at": m.walk_at, "missing_on_disk": m.missing_on_disk,
+            "extras": {"files": m.extras_on_disk[0], "bytes": m.extras_on_disk[1]},
             "categories": {c: {"label": CATEGORIES[c], "files": v[0], "bytes": v[1]} for c, v in m.unindexed_by_cat.items()},
             "groups": [dict(g, name=(titles[g["title"]]["title"] if g["title"] in titles else None))
                        for g in m.unindexed]}
@@ -350,6 +378,7 @@ async def api_walk(request: Request):
     if S.raw:
         async with S.lock:
             await asyncio.to_thread(rebuild)
+        await resolve_extras()
     return {"files": len(walk["files"]), "unindexed_groups": len(S.model.unindexed) if S.model else None}
 
 

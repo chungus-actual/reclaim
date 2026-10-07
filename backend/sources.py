@@ -17,6 +17,8 @@ import config as C
 log = logging.getLogger("reclaim.sources")
 
 PLEX_PAGE = 5000
+EXTRAS_BATCH = 100     # titles per metadata request: ~2.5 s for 100 movies, mostly Plex resolving online trailers
+EXTRAS_SKIP = "Role,Genre,Country,Director,Writer,Producer,Similar,Guid,Rating,Image,Field,Location,Collection,Label,Marker,Chapter,Review"
 
 
 def _ids(item):
@@ -120,6 +122,26 @@ class Sources:
             "index": e.get("index"), "sindex": e.get("parentIndex"), "title": e.get("title"),
             "added": e.get("addedAt"), "duration": e.get("duration"), "media": _media(e),
         } for e in rows]
+
+    async def plex_extras(self, keys):
+        """Local extras (Featurettes/, *-trailer.mkv, ...) of the given titles/seasons, by parent key.
+        Plex returns them only inside the parent's own metadata: section listings skip clips and
+        ignore includeExtras. Online trailers come back too but have no file, so they're dropped."""
+        out = {}
+        for i in range(0, len(keys), EXTRAS_BATCH):
+            mc = await self.plex("/library/metadata/" + ",".join(keys[i:i + EXTRAS_BATCH]),
+                                 includeExtras=1, excludeElements=EXTRAS_SKIP)
+            for x in mc.get("Metadata") or []:
+                clips = []
+                for e in (x.get("Extras") or {}).get("Metadata") or []:
+                    files = [[p["file"], p.get("size") or 0] for m in e.get("Media") or []
+                             for p in m.get("Part") or [] if p.get("file")]
+                    if files:
+                        clips.append({"key": e.get("ratingKey"), "title": e.get("title"),
+                                      "subtype": e.get("subtype"), "files": files})
+                if clips:
+                    out[x["ratingKey"]] = clips
+        return out
 
     async def plex_users(self):
         """Server accounts, used when Tautulli isn't configured. Plex calls the owner account 1;
