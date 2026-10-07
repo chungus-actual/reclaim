@@ -1013,10 +1013,10 @@ async function dgStart(key, target, seasons) {
 }
 function dgResume(key) { const id = DG.search.get(key); if (id) dgWatch(id, key); }
 
-async function dgWatch(id, key) {
+async function dgWatch(id, key, alive = () => DETAIL.key === key) {
   for (;;) {
     const box = $('#dgbox');
-    if (!box || DETAIL.key !== key) return;            // drawer moved on; the search keeps running server-side
+    if (!box || !alive()) return;                      // drawer/modal moved on; the search keeps running server-side
     let job;
     try { job = await get(`/api/downgrade/search/${id}`); }
     catch (e) { DG.search.delete(key); fill(box, h('div', { class: 'callout' }, e.message)); return; }
@@ -1037,12 +1037,13 @@ function renderSearch(box, job) {
   const saves = picks.reduce((s, x) => s + x.c.saves, 0);
   const searching = job.parts.findIndex(p => p.status === 'searching');
   const head = h('div', { class: 'dg-head' },
-    h('b', null, `↓${job.target}p`), ' · ',
+    h('b', null, job.mode === 'replace' ? `${job.target}p` : `↓${job.target}p`), ' · ',
     job.status === 'done' ? `${app} searched ${job.parts.length > 1 ? `${job.parts.length} seasons` : ''}`.trim()
       : `${app} is searching${job.parts.length > 1 ? ` season ${searching + 1} of ${job.parts.length}` : ''}… (${job.kind === 'movie' ? '~10 s' : '~2 min per season'})`);
   const parts = job.parts.map((p, i) => renderPart(job, p, i, keyOf(i)));
   const foot = h('div', { class: 'modal-actions', style: 'justify-content:space-between' },
-    h('span', { class: 'muted' }, picks.length ? `${picks.length} pick${picks.length > 1 ? 's' : ''} · saves ${fmtB(saves)}` : 'Nothing picked'),
+    h('span', { class: 'muted' }, !picks.length ? 'Nothing picked' : job.mode === 'replace' ? `${fmtB(picks[0].c.size)} ${picks[0].c.quality}`
+      : `${picks.length} pick${picks.length > 1 ? 's' : ''} · saves ${fmtB(saves)}`),
     h('button', { class: 'btn primary', disabled: !picks.length, onclick: () => dgConfirm(job, picks) },
       picks.length > 1 ? `Grab ${picks.length} season packs…` : 'Replace with this…'));
   fill(box, h('div', { class: 'dg' }, head, ...parts, job.parts.some(p => p.status === 'done') ? foot : null));
@@ -1077,7 +1078,8 @@ function renderPart(job, p, i, selKey) {
   const visible = showAll ? cands : ok.slice(0, 12);
   return h('div', { class: 'dg-part' },
     title,
-    !multi && p.ctx ? h('div', { class: 'facts' }, `Now ${p.ctx.file_quality || '?'} · ${fmtB(p.ctx.file_size)}`, p.runtime_min ? ` · ${p.runtime_min} min` : '',
+    !multi && p.ctx ? h('div', { class: 'facts' }, job.mode === 'replace' && !p.ctx.file_id ? 'Radarr has no file for it'
+      : `Now ${p.ctx.file_quality || '?'} · ${fmtB(p.ctx.file_size)}`, p.runtime_min ? ` · ${p.runtime_min} min` : '',
       ` · ${fmtN(p.total)} results, ${fmtN(cands.length)} at ${job.target}p, ${fmtN(ok.length)} usable`) :
       h('div', { class: 'muted', style: 'font-size:12px' }, `${fmtN(cands.length)} ${job.target}p season packs · ${fmtN(ok.length)} usable`),
     cands.length ? h('table', { class: 'mini dg-table' },
@@ -1107,10 +1109,14 @@ function dgConfirm(job, picks) {
           h('span', null, h('span', { class: x.ok ? 'res-ok' : 'res-bad' }, x.ok ? '✓ ' : '✗ '), x.label, x.error ? h('div', { class: 'muted' }, x.error) : null),
           h('span', { class: 'num' }, x.ok ? `−${fmtB(x.saves)}` : '')))),
         h('div', { class: 'ink2' }, `${app} profile is now "${r.profile}". Progress shows on the Downgrades tab; reclaim checks every 2 minutes and rescans Plex when the new file lands.`),
-        h('div', { class: 'modal-actions' }, h('button', { class: 'btn primary', onclick: () => { modal.hidden = true; DG.search.delete(job.key); openDetail(job.key); } }, 'Close'))));
+        h('div', { class: 'modal-actions' }, h('button', { class: 'btn primary', onclick: () => {
+          modal.hidden = true; DG.search.delete(job.key);
+          job.mode === 'replace' ? renderLoose() : openDetail(job.key);
+        } }, 'Close'))));
     } catch (e) { toast('Grab failed: ' + e.message); go.disabled = false; }
   };
   const whole = job.kind === 'show';
+  if (job.mode === 'replace') return replaceConfirm(job, picks, go);
   fill(modal, h('div', { class: 'modal-box', role: 'dialog', 'aria-modal': 'true' },
     h('h2', null, `Downgrade ${job.title} → ${job.target}p · saves ${fmtB(total)}`),
     h('div', { class: 'list' }, ...picks.map(x => h('div', null,
@@ -1119,6 +1125,23 @@ function dgConfirm(job, picks) {
       h('li', null, `${app} downloads ${picks.length > 1 ? 'these' : 'this'}. Nothing changes until it finishes.`),
       h('li', null, `On import ${app} replaces the current ${whole ? 'episode files' : 'file'} and deletes ${whole ? 'them' : 'it'} (no recycle bin).`),
       h('li', null, `The ${whole ? 'series' : 'movie'} moves to the "Reclaim ↓${job.target}p" profile with upgrades off, so it can't drift back up${whole ? ' — new episodes also come in at ' + job.target + 'p' : ''}. If the download fails or you cancel, the original profile comes back.`)),
+    h('div', { class: 'modal-actions' }, h('button', { class: 'btn', onclick: () => { modal.hidden = true; } }, 'Cancel'), go)));
+  modal.hidden = false;
+}
+
+function replaceConfirm(job, picks, go) {
+  const modal = $('#modal');
+  const c = picks[0].c, ctx = picks[0].p.ctx || {};
+  go.textContent = 'Grab it';
+  fill(modal, h('div', { class: 'modal-box', role: 'dialog', 'aria-modal': 'true' },
+    h('h2', null, `Replace ${job.title} with ${c.quality} · ${fmtB(c.size)}`),
+    h('div', { class: 'list' }, h('div', null, h('span', null, c.title), h('span', { class: 'num' }, fmtB(c.size)))),
+    h('ul', { class: 'ink2', style: 'font-size:13px;padding-left:18px' },
+      h('li', null, 'Radarr downloads it. Nothing changes until it finishes.'),
+      ctx.file_id
+        ? h('li', null, `On import Radarr deletes ${ctx.file || 'the file it tracks'} (${fmtB(ctx.file_size)}, no recycle bin) and puts the new file in its place. Reclaim then has Plex rescan the folder, so the movie shows up.`)
+        : h('li', null, 'Radarr tracks no file here, so the new one lands next to the old files. Delete those afterwards with a cleanup script.'),
+      h('li', null, `The movie moves to the "Reclaim ↓${job.target}p" profile with upgrades off, which is what lets the release win over a disc rip and keeps Radarr from grabbing anything else. If the download fails or you cancel, the original profile comes back.`)),
     h('div', { class: 'modal-actions' }, h('button', { class: 'btn', onclick: () => { modal.hidden = true; } }, 'Cancel'), go)));
   modal.hidden = false;
 }
@@ -1144,7 +1167,7 @@ async function renderDowngrades() {
         h('th', null, 'State'), h('th', null, '')),
       ...DG.jobs.map(j => h('tr', null,
         h('td', { title: new Date(j.created * 1000).toLocaleString() }, fmtAgo(j.created)),
-        h('td', null, h('a', { href: '#', onclick: e => { e.preventDefault(); openDetail(j.title_key); } }, j.label),
+        h('td', null, h('a', { href: '#', onclick: e => { e.preventDefault(); j.title_key.startsWith('loose:') ? showTab('loose') : openDetail(j.title_key); } }, j.label),
           h('div', { class: 'path', title: j.release }, j.release)),
         h('td', null, `${j.old_quality || '?'} → ${j.quality}`),
         h('td', { class: 'n' }, `${fmtB(j.old_size)} → ${fmtB(j.final_size || j.new_size)}`,
@@ -1476,9 +1499,20 @@ async function saveSettings() {
 
 /* ------------------------------------------------------------ other tabs */
 const LOOSE_PAGE = 200;
+const dispPath = showPath;
 function walkBtn() {
   return h('button', { class: 'btn sm', onclick: async e => { e.target.disabled = true; await post('/api/walk/run'); toast('Walking — the tab updates when it finishes'); } }, 'Walk now');
 }
+// Not-in-Plex selection: path -> {size, cat, folder, root, titled}. Outlives repaints and tab switches.
+const LOOSE = { sel: new Map() };
+const rootOf = folder => folder.slice(0, folder.lastIndexOf('/'));
+// What ticking a whole folder selects. Never 'alias' (indexed files under a name SMB can't show).
+// Next to a title Plex plays, sidecars stay (they're its subtitles and artwork) unless you're
+// looking at the sidecar category on purpose.
+const loosePick = (g, cat) => g.files.filter(f => f[2] !== 'alias' && (cat ? f[2] === cat : !g.title || f[2] !== 'sidecar'));
+const looseAdd = (g, files) => { for (const [p, s, c] of files) LOOSE.sel.set(p, { size: s, cat: c, folder: g.folder, root: rootOf(g.folder), titled: !!g.title }); };
+const looseDrop = g => { for (const f of g.files) LOOSE.sel.delete(f[0]); };
+
 async function renderLoose() {
   const el = $('#tab-loose');
   fill(el, h('div', { class: 'card muted' }, 'Loading…'));
@@ -1493,8 +1527,10 @@ async function renderLoose() {
           h('p', null, 'If the files are only reachable from another machine, run tools/remote_walk.py there; it posts the list here.'))));
     return;
   }
+  const listed = new Set(d.groups.flatMap(g => g.files.map(f => f[0])));
+  for (const p of [...LOOSE.sel.keys()]) if (!listed.has(p)) LOOSE.sel.delete(p);   // gone since the last walk
   const cats = Object.entries(d.categories).sort((a, b) => b[1].bytes - a[1].bytes);
-  const st = { q: '', cat: '', sort: 'size', side: false, shown: LOOSE_PAGE };
+  const st = { q: '', cat: '', sort: 'size', side: false, shown: LOOSE_PAGE, open: new Set() };
   for (const g of d.groups) {
     g._all = g.files.reduce((s, f) => s + f[1], 0);
     g._hay = [g.folder, g.name || '', ...g.files.map(f => f[0].slice(g.folder.length))].join('\n').toLowerCase();
@@ -1509,27 +1545,80 @@ async function renderLoose() {
   };
   const head = h('div', { class: 'muted', style: 'margin:10px 0 2px' });
   const body = h('div');
+  const bar = h('div', { class: 'selbar', hidden: true });
+  const refs = new Map();             // folder -> { box, cbs: Map(path -> checkbox) } for rows on screen
+  let matching = [];                  // every group the filters match, not just the page on screen
+
+  const allBox = h('input', { type: 'checkbox', onchange: e => {
+    for (const g of matching) e.target.checked ? looseAdd(g, loosePick(g, st.cat)) : looseDrop(g);
+    syncAll();
+  } });
+  const allText = h('span');
+  const syncGroup = g => {
+    const r = refs.get(g.folder);
+    if (!r) return;
+    const picks = loosePick(g, st.cat);
+    r.box.checked = picks.length > 0 && picks.every(f => LOOSE.sel.has(f[0]));
+    r.box.indeterminate = !r.box.checked && g.files.some(f => LOOSE.sel.has(f[0]));
+    for (const [p, cb] of r.cbs) cb.checked = LOOSE.sel.has(p);
+  };
+  const syncBar = () => {
+    let bytes = 0;
+    const folders = new Set();
+    for (const v of LOOSE.sel.values()) { bytes += v.size; folders.add(v.folder); }
+    bar.hidden = !LOOSE.sel.size;
+    if (LOOSE.sel.size) {
+      fill(bar, h('span', null, `${plural(LOOSE.sel.size, 'file')} · ${fmtB(bytes)} in ${plural(folders.size, 'folder')}`),
+        h('button', { class: 'btn sm', onclick: () => { LOOSE.sel.clear(); syncAll(); } }, 'Clear'),
+        h('button', { class: 'btn sm add', onclick: () => cleanupBuilder(d) }, 'Cleanup script…'));
+    }
+    const picks = matching.flatMap(g => loosePick(g, st.cat));
+    allBox.checked = picks.length > 0 && picks.every(f => LOOSE.sel.has(f[0]));
+    allBox.indeterminate = !allBox.checked && picks.some(f => LOOSE.sel.has(f[0]));
+    allBox.disabled = !picks.length;
+    allText.textContent = ` select all ${plural(matching.length, 'matching folder')}`;
+  };
+  const syncAll = () => { for (const g of matching) syncGroup(g); syncBar(); };
+
+  const row = g => {
+    const name = g.folder.split('/').pop();
+    const picks = loosePick(g, st.cat);
+    const why = picks.length ? null : g.files.every(f => f[2] === 'alias')
+      ? 'Plex indexes these under their real names; they only look loose over SMB'
+      : 'Only sidecars here, next to a title Plex plays. Pick Sidecar under Category to select them, or tick files one by one.';
+    const box = h('input', { type: 'checkbox', 'aria-label': `Select ${name}`, disabled: !picks.length, title: why,
+      onchange: e => { e.target.checked ? looseAdd(g, loosePick(g, st.cat)) : looseDrop(g); syncGroup(g); syncBar(); } });
+    const cbs = new Map();
+    refs.set(g.folder, { box, cbs });
+    const files = h('div', { class: 'files' });
+    const showFiles = () => { if (!files.firstChild) fill(files, looseFiles(g, cbs, () => { syncGroup(g); syncBar(); })); };
+    const det = h('details', { class: 'ugroup', open: st.open.has(g.folder),
+      ontoggle: e => { if (e.target.open) { st.open.add(g.folder); showFiles(); } else st.open.delete(g.folder); } },
+      h('summary', null,
+        h('div', null, box, ' ', h('b', null, name),
+          g.title ? h('span', { class: 'muted' }, ' · Plex: ', h('a', { href: '#', onclick: e => { e.preventDefault(); openDetail(g.title); } }, g.name))
+            : h('span', { class: 'badge crit', style: 'margin-left:6px' }, 'no Plex title in this folder'),
+          h('div', { class: 'chips' }, ...Object.entries(g.cats).filter(([, b]) => b >= 1e6).map(([c, b]) => h('span', { class: 'badge' + (c === 'temp' ? ' crit' : '') }, `${c} ${fmtB(b)}`))),
+          replaceBits(g)),
+        h('div', { class: 'num', style: 'text-align:right' }, fmtB(sizeOf(g)))),
+      files);
+    if (st.open.has(g.folder)) showFiles();
+    return det;
+  };
+
   const paint = () => {
     const q = st.q.trim().toLowerCase();
-    const groups = d.groups.filter(g => (st.cat ? st.cat in g.cats : st.side || g.bytes > 0) && (!q || g._hay.includes(q)))
+    matching = d.groups.filter(g => (st.cat ? st.cat in g.cats : st.side || g.bytes > 0) && (!q || g._hay.includes(q)))
       .sort(SORTS[st.sort]);
-    const rest = groups.length - st.shown;
-    head.textContent = groups.length === d.groups.length ? plural(groups.length, 'folder') : `${fmtN(groups.length)} of ${plural(d.groups.length, 'folder')}`;
-    if (!groups.length) return fill(body, h('div', { class: 'empty' }, 'No folders match.'));
-    fill(body, ...groups.slice(0, st.shown).map(g => {
-      const name = g.folder.split('/').pop();
-      return h('details', { class: 'ugroup' },
-        h('summary', null,
-          h('div', null, h('b', null, name),
-            g.title ? h('span', { class: 'muted' }, ' · Plex: ', h('a', { href: '#', onclick: e => { e.preventDefault(); openDetail(g.title); } }, g.name))
-              : h('span', { class: 'badge crit', style: 'margin-left:6px' }, 'no Plex title in this folder'),
-            h('div', { class: 'chips' }, ...Object.entries(g.cats).filter(([, b]) => b >= 1e6).map(([c, b]) => h('span', { class: 'badge' + (c === 'temp' ? ' crit' : '') }, `${c} ${fmtB(b)}`)))),
-          h('div', { class: 'num', style: 'text-align:right' }, fmtB(sizeOf(g)))),
-        h('div', { class: 'files' }, fileList(g.files)));
-    }), rest > 0 ? h('div', { class: 'more-row' },
-      h('span', { class: 'muted' }, `Showing ${fmtN(st.shown)} of ${fmtN(groups.length)}`),
+    const rest = matching.length - st.shown;
+    head.textContent = matching.length === d.groups.length ? plural(matching.length, 'folder') : `${fmtN(matching.length)} of ${plural(d.groups.length, 'folder')}`;
+    refs.clear();
+    if (!matching.length) fill(body, h('div', { class: 'empty' }, 'No folders match.'));
+    else fill(body, ...matching.slice(0, st.shown).map(row), rest > 0 ? h('div', { class: 'more-row' },
+      h('span', { class: 'muted' }, `Showing ${fmtN(st.shown)} of ${fmtN(matching.length)}`),
       h('button', { class: 'btn sm', onclick: () => { st.shown += LOOSE_PAGE; paint(); } }, `Show ${fmtN(Math.min(LOOSE_PAGE, rest))} more`),
-      rest > LOOSE_PAGE ? h('button', { class: 'btn sm ghost', onclick: () => { st.shown = groups.length; paint(); } }, `Show all ${fmtN(groups.length)}`) : null) : null);
+      rest > LOOSE_PAGE ? h('button', { class: 'btn sm ghost', onclick: () => { st.shown = matching.length; paint(); } }, `Show all ${fmtN(matching.length)}`) : null) : null);
+    syncAll();
   };
   const set = (k, v) => { st[k] = v; st.shown = LOOSE_PAGE; paint(); };
   const sideBox = h('input', { type: 'checkbox', onchange: e => set('side', e.target.checked) });
@@ -1542,7 +1631,8 @@ async function renderLoose() {
       ...cats.map(([c, v]) => h('option', { value: c }, `${v.label} (${fmtN(v.files)})`)))),
     h('label', { class: 'f' }, 'Sort ', h('select', { onchange: e => set('sort', e.target.value) },
       h('option', { value: 'size' }, 'largest first'), h('option', { value: 'files' }, 'most files'), h('option', { value: 'name' }, 'folder name'))),
-    sideLabel);
+    sideLabel,
+    h('label', { class: 'f' }, allBox, allText));
   paint();
   const total = cats.filter(([c]) => c !== 'alias').reduce((s, [, v]) => s + v.bytes, 0);
   fill(el, h('div', { class: 'card' },
@@ -1552,7 +1642,132 @@ async function renderLoose() {
       h('div', { class: 'l' }, v.label), h('div', { class: 'v' }, fmtB(v.bytes)), h('div', { class: 's' }, plural(v.files, 'file'))))),
     d.missing_on_disk ? h('div', { class: 'callout info' }, `${d.missing_on_disk} indexed files weren't seen by the walk — files deleted since the walk, a Disk walk folder mapping that doesn't cover them, or (over SMB) names Windows can't represent, which show up as 8.3 aliases like DR0ON7~D.`) : null,
     d.extras?.files ? h('div', { class: 'callout info' }, `Plex has indexed ${plural(d.extras.files, 'file')} (${fmtB(d.extras.bytes)}) as extras: featurettes, trailers, deleted scenes and the like. They're in Plex, so they aren't listed here; each title's details show its own.`) : null,
-    toolbar, head, body));
+    toolbar, head, body, bar));
+}
+
+function looseFiles(g, cbs, changed) {
+  const LIMIT = 300;
+  const real = g.files.filter(f => f[2] !== 'sidecar' && f[2] !== 'alias');
+  return h('div', null,
+    h('table', { class: 'mini' }, ...g.files.slice(0, LIMIT).map(f => {
+      const [p, s, c] = f;
+      const cb = h('input', { type: 'checkbox', 'aria-label': `Select ${p.split('/').pop()}`, checked: LOOSE.sel.has(p), disabled: c === 'alias',
+        title: c === 'alias' ? 'Plex indexes this file under its real name; it only looks loose over SMB' : null,
+        onchange: e => { e.target.checked ? looseAdd(g, [f]) : LOOSE.sel.delete(p); changed(); } });
+      cbs.set(p, cb);
+      return h('tr', null, h('td', null, cb), h('td', null, h('div', { class: 'path' }, dispPath(p))), h('td', { class: 'n' }, fmtB(s)),
+        h('td', null, h('span', { class: 'badge' + (c === 'temp' ? ' crit' : '') }, c)));
+    })),
+    g.files.length > LIMIT ? h('div', { class: 'muted' }, `…and ${fmtN(g.files.length - LIMIT)} more (ticking the folder selects those too)`) : null,
+    real.length ? h('button', { class: 'btn sm', style: 'margin-top:6px', onclick: () => copy(real.map(f => dispPath(f[0])).join('\n')) }, `Copy ${real.length} path${real.length > 1 ? 's' : ''}`) : null);
+}
+
+/* ------------------------------------------------- not in plex: replacement */
+// A movie folder Plex has no title for, that Radarr knows: usually a disc rip Radarr tracks as the
+// movie's file. The downgrade machinery swaps it for a normal release (its profiles rank disc rips lowest).
+function replaceBits(g) {
+  if (CFG.read_only || g.title || g.arr?.app !== 'radarr') return null;
+  const j = g.replace;
+  const note = (...k) => h('div', { class: 'muted', style: 'font-size:12px;margin-top:3px' }, ...k);
+  if (j?.state === 'grabbed') return note(`Replacement on its way: ${j.quality} · ${j.note || ''}`);
+  if (j?.state === 'imported') return note(`Replaced with ${j.quality} (${fmtB(j.final_size || j.new_size)}); Plex was told to rescan the folder.`);
+  return h('div', { class: 'd-actions', style: 'margin-top:4px' },
+    h('button', { class: 'btn sm', onclick: e => { e.preventDefault(); replaceStart(g); } }, 'Find a replacement…'),
+    h('span', { class: 'muted', style: 'font-size:12px' },
+      j?.state === 'failed' || j?.state === 'cancelled' ? `Last try ${j.state}: ${j.note || ''}` : g.arr.has_file ? `Radarr tracks ${g.arr.file}` : 'Radarr has no file for it'));
+}
+
+async function replaceStart(g, target = 1080) {
+  const modal = $('#modal');
+  const key = 'loose:' + g.folder;
+  const box = h('div', { id: 'dgbox', 'data-key': key }, h('div', { class: 'muted' }, 'Starting search…'));
+  const a = g.arr;
+  fill(modal, h('div', { class: 'modal-box wide', role: 'dialog', 'aria-modal': 'true' },
+    h('h2', null, `Find a replacement for ${a.title}${a.year ? ` (${a.year})` : ''}`),
+    h('div', { class: 'ink2', style: 'font-size:13px' }, a.has_file
+      ? `Plex can't play what Radarr tracks here (${a.file}). Radarr swaps it for the release you pick and deletes ${a.file} once the new file imports.`
+      : 'Radarr has no file for this movie, so the release you pick lands next to what is in the folder now. Delete the old files afterwards with a cleanup script.'),
+    h('div', { class: 'd-actions' }, h('span', { class: 'muted', style: 'font-size:12px' }, 'Resolution'),
+      h('div', { class: 'seg' }, ...D_TIERS.map(x => h('button', { class: x === target ? 'on' : '', onclick: () => replaceStart(g, x) }, `${x}p`)))),
+    box,
+    h('div', { class: 'modal-actions' }, h('button', { class: 'btn', onclick: () => { modal.hidden = true; } }, 'Close'))));
+  modal.hidden = false;
+  try {
+    const job = await post('/api/downgrade/search', { folder: g.folder, target });
+    dgWatch(job.id, key, () => !modal.hidden && $('#dgbox')?.dataset.key === key);
+  } catch (e) { fill(box, h('div', { class: 'callout' }, e.message)); }
+}
+const D_TIERS = [1080, 720];
+
+/* ------------------------------------------------ not in plex: cleanup script */
+const CLEAN_PREF = 'reclaim.cleanup';
+function cleanupBuilder(d) {
+  const modal = $('#modal');
+  let pref = {};
+  try { pref = JSON.parse(localStorage.getItem(CLEAN_PREF) || '{}') || {}; } catch { pref = {}; }
+  const st = { shell: pref.shell === 'powershell' ? 'powershell' : 'bash', action: pref.action === 'move' ? 'move' : 'delete',
+    maps: pref.maps || {}, holding: pref.holding || {} };
+  const save = () => { try { localStorage.setItem(CLEAN_PREF, JSON.stringify(st)); } catch { /* private window: fine */ } };
+  const files = [...LOOSE.sel].map(([path, v]) => ({ path, size: v.size, cat: v.cat, folder: v.folder, root: v.root }));
+  const nearTitle = [...LOOSE.sel.values()].filter(v => v.titled && v.cat === 'sidecar').length;
+  const roots = [...new Set(files.map(f => f.root))];
+  const covered = (r, m) => Object.keys(m).some(k => { const f = k.replace(/\/+$/, ''); return r === f || r.startsWith(f + '/'); });
+  const mapFor = shell => {
+    const m = { ...(d.script_paths?.[shell] || {}), ...(st.maps[shell] || {}) };
+    for (const r of roots) if (!covered(r, m)) m[r] = '';
+    return m;
+  };
+  const defaultHolding = (shell, map) => {
+    const sep = Cleanup.SHELLS[shell].sep;
+    const first = roots.map(r => Cleanup.mapPath(r, map, sep)).find(Boolean);
+    return first ? first.slice(0, first.lastIndexOf(sep)) + sep + '_reclaim-holding' : '';
+  };
+  const seg = (opts, cur, pick) => h('div', { class: 'seg' }, ...opts.map(([v, label]) =>
+    h('button', { class: v === cur ? 'on' : '', onclick: () => { pick(v); save(); paint(); } }, label)));
+  const controls = h('div', { class: 'd-actions' });
+  const mapBox = h('div');
+  const notes = h('div');
+  const out = h('pre', { class: 'script', tabindex: '0', 'aria-label': 'Generated script' });
+  let built = null;
+  const cp = h('button', { class: 'btn', onclick: () => copy(built.text) }, 'Copy');
+  const dl = h('button', { class: 'btn primary', onclick: () => {
+    // Windows PowerShell 5.1 reads a script without a BOM as ANSI and mangles non-ASCII names
+    const blob = new Blob([(st.shell === 'powershell' ? '\ufeff' : '') + built.text], { type: 'text/plain;charset=utf-8' });
+    const a = h('a', { href: URL.createObjectURL(blob), download: built.filename });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  } }, 'Download');
+  const paint = () => {
+    const map = mapFor(st.shell);
+    const holding = st.holding[st.shell] ?? defaultHolding(st.shell, map);
+    fill(controls,
+      seg([['bash', 'bash (Unraid, Linux)'], ['powershell', 'PowerShell (Windows)']], st.shell, v => { st.shell = v; }),
+      seg([['delete', 'Delete'], ['move', 'Move to a holding folder']], st.action, v => { st.action = v; }));
+    fill(mapBox,
+      h('div', { class: 'muted', style: 'font-size:12px;margin-top:10px' }, 'Plex path → where the script runs'),
+      ...Object.entries(map).map(([from, to]) => h('label', { class: 'map-row' },
+        h('code', null, from), h('span', { class: 'muted' }, '→'),
+        h('input', { type: 'text', value: to, spellcheck: 'false', 'aria-label': `Path for ${from}`,
+          placeholder: st.shell === 'bash' ? '/mnt/user/share' : '\\\\server\\share',
+          onchange: e => { st.maps[st.shell] = { ...(st.maps[st.shell] || {}), [from]: e.target.value.trim() }; save(); paint(); } }))),
+      st.action === 'move' ? h('label', { class: 'map-row' }, h('span', null, 'Holding folder'),
+        h('input', { type: 'text', value: holding, spellcheck: 'false', 'aria-label': 'Holding folder',
+          onchange: e => { st.holding[st.shell] = e.target.value.trim(); save(); paint(); } })) : null);
+    built = Cleanup.build({ shell: st.shell, action: st.action, files, map, holding, walkAt: d.walk_at });
+    out.textContent = built.text;
+    fill(notes,
+      nearTitle ? h('div', { class: 'callout' }, `${plural(nearTitle, 'sidecar')} in this list sit next to a title Plex plays. Those are usually its subtitles and artwork, which Plex uses. Untick them unless that's what you mean.`) : null,
+      built.unmapped.length ? h('div', { class: 'callout' }, `${plural(built.unmapped.length, 'file')} left out: set where ${built.unmapped.length === 1 ? 'its' : 'their'} library lives above.`) : null,
+      ...built.problems.map(p => h('div', { class: 'callout' }, p)));
+    cp.disabled = dl.disabled = !built.count || built.problems.length > 0;
+  };
+  fill(modal, h('div', { class: 'modal-box wide', role: 'dialog', 'aria-modal': 'true' },
+    h('h2', null, 'Cleanup script'),
+    h('div', { class: 'ink2', style: 'font-size:13px' }, 'Reclaim only deletes through Plex, and Plex doesn\'t know these files. Run this where they live: a shell on the server, or PowerShell on a PC that reaches the share. It prints the list and asks before touching anything, removes folders it leaves empty, and skips anything already gone.'),
+    controls, mapBox, notes, out,
+    h('div', { class: 'modal-actions' }, h('button', { class: 'btn', onclick: () => { modal.hidden = true; } }, 'Close'), cp, dl)));
+  modal.hidden = false;
+  paint();
 }
 
 async function renderLog() {
@@ -1581,6 +1796,7 @@ function showTab(name) {
   $('#tab-loose').hidden = name !== 'loose';
   $('#tab-log').hidden = name !== 'log';
   $('#tab-downgrades').hidden = name !== 'downgrades';
+  $('#selbar').hidden = name !== 'library' || !sel.size;
   $('#tab-settings').hidden = name !== 'settings';
   $('#cap').hidden = name === 'settings' || !M;
   if (name === 'settings') renderSettings(true);

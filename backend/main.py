@@ -34,6 +34,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 RAW_FILE = C.DATA_DIR / "raw.json.gz"
 WALK_FILE = C.DATA_DIR / "walk.json.gz"
 EXTRAS_FILE = C.DATA_DIR / "extras.json.gz"
+REPLACE_KEY = "loose:"        # downgrade jobs that replace a Not-in-Plex folder use "loose:<folder>" as their key
 THUMBS = C.DATA_DIR / "thumbs"
 THUMBS.mkdir(exist_ok=True)
 
@@ -355,10 +356,16 @@ async def api_capacity():
 async def api_unindexed():
     m = need_model()
     titles = m.titles
+    replacing = {}                 # folder -> its latest replacement job (newest first, so the first one wins)
+    for j in store.downgrades("title_key LIKE ?", REPLACE_KEY + "%"):
+        replacing.setdefault(j["title_key"][len(REPLACE_KEY):], j)
     return {"walk_at": m.walk_at, "missing_on_disk": m.missing_on_disk,
             "extras": {"files": m.extras_on_disk[0], "bytes": m.extras_on_disk[1]},
+            # cleanup scripts start from the server paths DISPLAY_PATHS already names; Windows paths are set in the page
+            "script_paths": {"bash": {a: b for a, b in C.DISPLAY_PATHS}, "powershell": {}},
             "categories": {c: {"label": CATEGORIES[c], "files": v[0], "bytes": v[1]} for c, v in m.unindexed_by_cat.items()},
-            "groups": [dict(g, name=(titles[g["title"]]["title"] if g["title"] in titles else None))
+            "groups": [dict(g, name=(titles[g["title"]]["title"] if g["title"] in titles else None),
+                            replace=replacing.get(g["folder"]))
                        for g in m.unindexed]}
 
 
@@ -579,6 +586,8 @@ async def dg_search(request: Request):
     destructive(request)
     m = need_model()
     body = await request.json()
+    if body.get("folder"):
+        return _replace_search(m, str(body["folder"]), int(body["target"]))
     key, target = str(body["key"]), int(body["target"])
     t = m.titles.get(key)
     if not t:
@@ -610,6 +619,30 @@ async def dg_search(request: Request):
     return job
 
 
+def _replace_search(m, folder, target):
+    """A replacement for a movie folder Plex has no title for (a disc rip Radarr tracks, a file
+    Plex never matched): the same search/pick/grab as a downgrade, keyed by the folder."""
+    g = next((x for x in m.unindexed if x["folder"] == folder), None)
+    if not g:
+        raise HTTPException(404, "that folder isn't in the Not in Plex list any more")
+    if g["title"]:
+        raise HTTPException(400, "Plex already plays a title from this folder; downgrade it from its details instead")
+    a = g.get("arr")
+    if not a or a["app"] != "radarr":
+        raise HTTPException(400, "only movie folders Radarr knows can be replaced")
+    if target not in D.TIERS:
+        raise HTTPException(400, f"target must be one of {D.TIERS}")
+    job = {"id": uuid.uuid4().hex[:10], "key": REPLACE_KEY + folder, "kind": "movie", "app": "radarr",
+           "item_id": a["id"], "target": target, "title": a["title"], "started": time.time(), "status": "running",
+           "mode": "replace", "folder": folder, "section": g["section"], "loose_bytes": g["bytes"],
+           "parts": [{"season": None, "season_key": None, "label": a["title"], "status": "pending"}]}
+    for k in [k for k, v in S.searches.items() if time.time() - v["started"] > 7200]:
+        del S.searches[k]
+    S.searches[job["id"]] = job
+    asyncio.create_task(_dg_run_search(job, None))
+    return job
+
+
 async def _dg_run_search(job, t):
     try:
         inst = (await S.src.arr_instances())[job["app"]]
@@ -624,11 +657,15 @@ async def _dg_run_search(job, t):
                     ctx = await D.season_context(S.src, inst, job["item_id"], part["season"])
                     rels = await S.src.arr(inst, "GET", "/release",
                                            params={"seriesId": job["item_id"], "seasonNumber": part["season"]})
-                rt = _runtime_min(S.model, t, part["season_key"])
+                replace = job.get("mode") == "replace"
+                rt = (ctx.get("runtime") or None) if replace else _runtime_min(S.model, t, part["season_key"])
+                # a replacement is measured against what sits in the folder now (Radarr may track nothing)
+                current = (ctx["file_size"] or job["loose_bytes"]) if replace else ctx["file_size"]
                 part.update(ctx=ctx, runtime_min=round(rt) if rt else None, total=len(rels),
-                            candidates=D.candidates(rels, job["target"], ctx["file_size"], rt, part["season"],
+                            candidates=D.candidates(rels, job["target"], current, rt, part["season"],
                                                     "Radarr" if job["app"] == "radarr" else "Sonarr",
-                                                    prefer_multi=ctx.get("series_type") == "anime"),
+                                                    prefer_multi=ctx.get("series_type") == "anime",
+                                                    need_saving=not replace),
                             status="done", searched=time.time())
             except Exception as ex:
                 log.exception("downgrade search failed")
@@ -666,9 +703,14 @@ async def dg_grab(request: Request):
     job = S.searches.get(body.get("search_id"))
     if not job:
         raise HTTPException(404, "search expired — run it again")
-    t = m.titles.get(job["key"])
-    if not t:
-        raise HTTPException(404, "not in the library any more")
+    replace = job.get("mode") == "replace"
+    if replace:
+        # stands in for the Plex title a replacement doesn't have (yet)
+        t = {"key": job["key"], "title": job["title"], "folder": job["folder"], "section": job["section"]}
+    else:
+        t = m.titles.get(job["key"])
+        if not t:
+            raise HTTPException(404, "not in the library any more")
     app_, item = job["app"], job["item_id"]
     async with S.dg_lock:
         active = store.downgrades("app=? AND item_id=? AND state='grabbed'", app_, item)
@@ -701,14 +743,17 @@ async def dg_grab(request: Request):
                 results.append({"label": label, "ok": False, "error": f"grab refused: {ex}"})
                 continue
             ctx = part["ctx"]
+            old_size = (ctx["file_size"] or job["loose_bytes"]) if replace else ctx["file_size"]
             jid = store.dg_add({
                 "app": app_, "item_id": item, "title_key": t["key"], "season": part["season"], "label": label,
                 "target": job["target"], "release": cand["title"], "quality": cand["quality"],
-                "indexer": cand["indexer"], "new_size": cand["size"], "old_size": ctx["file_size"],
+                "indexer": cand["indexer"], "new_size": cand["size"], "old_size": old_size,
                 "old_quality": ctx["file_quality"], "old_profile": orig, "old_file_id": ctx.get("file_id"),
                 "old_file_ids": ",".join(map(str, ctx.get("file_ids") or [])), "state": "grabbed",
-                "note": "sent to the download client", "folder": t["folder"], "section": t["section"]})
-            results.append({"label": label, "ok": True, "id": jid, "saves": ctx["file_size"] - cand["size"]})
+                "note": "sent to the download client", "folder": t["folder"], "section": t["section"],
+                # Radarr deletes the file it tracks when the new one imports; remember it so the walk can forget it
+                "old_path": f"{t['folder']}/{ctx['file']}" if replace and ctx.get("file") else None})
+            results.append({"label": label, "ok": True, "id": jid, "saves": old_size - cand["size"]})
         if not any(r["ok"] for r in results) and cur != pid and not store.downgrades(
                 "app=? AND item_id=? AND state IN ('grabbed','imported')", app_, item):
             await D.set_profile(S.src, inst, app_, item, cur)
@@ -784,6 +829,10 @@ async def dg_tick():
             if state == "imported":
                 store.dg_update(j["id"], state="imported", note=note, final_size=size)
                 imported = True
+                if j.get("old_path") and S.walk:
+                    # the swapped-out file is gone from disk; the stored walk would keep listing it
+                    S.walk["files"] = [f for f in S.walk["files"] if f[0] != j["old_path"]]
+                    await asyncio.to_thread(_save_gz, WALK_FILE, S.walk)
                 if j["folder"] and j["section"]:
                     try:
                         await S.src.plex_scan(j["section"], j["folder"])

@@ -229,6 +229,8 @@ class Model:
             by_dir["sonarr"][(s["path"] or "").rstrip("/").rsplit("/", 1)[-1]] = s
             if s["tvdb"]:
                 by_id["sonarr"][str(s["tvdb"])] = s
+        self.arr_by_dir = by_dir       # the walk links loose folders to *arr items the same way
+        self.arr_profiles = {"radarr": rprof, "sonarr": sprof}
         self.arr_matched = defaultdict(int)
         for t in self.titles.values():
             app = "radarr" if t["kind"] == "movie" else "sonarr"
@@ -427,9 +429,25 @@ class Model:
             for _, s, c in g["files"]:
                 cats[c] += s
             self.unindexed.append({"folder": folder, "section": g["section"], "title": owners[0] if owners else None,
-                                   "bytes": g["bytes"], "cats": dict(cats),
+                                   "bytes": g["bytes"], "cats": dict(cats), "arr": self._arr_of_folder(folder, g),
                                    "files": sorted(g["files"], key=lambda f: -f[1])})
         self.unindexed.sort(key=lambda g: -g["bytes"])
+
+    def _arr_of_folder(self, folder, g):
+        """The Radarr/Sonarr item whose folder this is (matched by folder name, like titles are).
+        For a movie folder Plex can't play (a disc rip Radarr tracks, say) this is what a
+        replacement search runs against."""
+        if folder in (f for f, _, _ in g["files"]):
+            return None                # a loose file in the library root, not a folder
+        app = "radarr" if self.sections[g["section"]]["type"] == "movie" else "sonarr"
+        x = getattr(self, "arr_by_dir", {}).get(app, {}).get(folder.rsplit("/", 1)[-1])
+        if x is None:
+            return None
+        out = {"app": app, "id": x["id"], "title": x.get("title"), "monitored": bool(x.get("monitored")),
+               "profile": self.arr_profiles[app].get(x.get("profile"))}
+        if app == "radarr":
+            out.update(has_file=bool(x.get("has_file")), file=x.get("file"), year=x.get("year"))
+        return out
 
     def extra_candidates(self):
         """Plex keys to ask for local extras: titles whose folder holds video the index doesn't

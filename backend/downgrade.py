@@ -127,7 +127,10 @@ def classify(rel, target, current_bytes, runtime_min, season, app="arr"):
     }
 
 
-def candidates(releases, target, current_bytes, runtime_min, season=None, app="arr", prefer_multi=False):
+def candidates(releases, target, current_bytes, runtime_min, season=None, app="arr", prefer_multi=False,
+               need_saving=True):
+    """need_saving=False is a replacement for something Plex can't play (a disc rip, a file it
+    never matched): any clean release at the tier will do, smaller or not."""
     out = []
     for rel in releases:
         q = rel["quality"]["quality"]
@@ -135,9 +138,13 @@ def candidates(releases, target, current_bytes, runtime_min, season=None, app="a
             continue
         if season is not None and not (rel.get("fullSeason") and rel.get("seasonNumber") == season):
             continue
-        out.append(classify(rel, target, current_bytes, runtime_min, season, app))
+        c = classify(rel, target, current_bytes, runtime_min, season, app)
+        if not need_saving:
+            c["ok"] = not c["blockers"]
+        out.append(c)
     floor = MB_PER_MIN_FLOOR.get(target, 3.0)
-    eligible = [c for c in out if c["ok"] and c["saves_pct"] >= MIN_SAVE and (c["mbpm"] is None or c["mbpm"] >= floor)]
+    eligible = [c for c in out if c["ok"] and (c["saves_pct"] >= MIN_SAVE or not need_saving)
+                and (c["mbpm"] is None or c["mbpm"] >= floor)]
     # the arr's own preference among sane picks; multi-audio last unless the series wants it (anime)
     rec = min(eligible, key=lambda c: (c["multi"] != prefer_multi, c["weight"]), default=None)
     for c in out:

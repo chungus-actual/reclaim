@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS downgrades (
   old_size INTEGER, old_quality TEXT, old_profile INTEGER,
   old_file_id INTEGER, old_file_ids TEXT,
   state TEXT NOT NULL,                           -- grabbed | imported | failed | cancelled
-  note TEXT, final_size INTEGER, folder TEXT, section TEXT
+  note TEXT, final_size INTEGER, folder TEXT, section TEXT,
+  old_path TEXT                                  -- replacements: the file the import swaps out, in Plex's form
 );
 CREATE TABLE IF NOT EXISTS capacity (
   at REAL PRIMARY KEY,
@@ -65,6 +66,9 @@ def conn():
 def init():
     with conn() as c:
         c.executescript(SCHEMA)
+        cols = {r[1] for r in c.execute("PRAGMA table_info(downgrades)")}
+        if "old_path" not in cols:      # databases from before replacements
+            c.execute("ALTER TABLE downgrades ADD COLUMN old_path TEXT")
 
 
 def rows(sql, *args):
@@ -143,7 +147,7 @@ def capacity_history(days=180):
 
 DG_COLS = ("created", "updated", "app", "item_id", "title_key", "season", "label", "target", "release", "quality",
            "indexer", "new_size", "old_size", "old_quality", "old_profile", "old_file_id", "old_file_ids", "state",
-           "note", "final_size", "folder", "section")
+           "note", "final_size", "folder", "section", "old_path")
 
 
 def dg_add(row):

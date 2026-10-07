@@ -123,6 +123,25 @@ def test_walk():
     assert dict(m.unindexed_by_cat)["temp"][1] == 1 * GB
 
 
+def test_loose_arr_link():
+    r = raw()
+    r["arr"]["radarr"].append({"id": 9, "title": "Gamma", "year": 1990, "tmdb": 33, "path": "/movies/Gamma (1990)",
+                               "monitored": True, "has_file": True, "profile": 1, "size": 20 * GB, "file": "gamma.iso",
+                               "added": None})
+    walk = {"roots": ["/data/Movies", "/data/TV"], "files": [
+        ["/data/Movies/Gamma (1990)/gamma.iso", 20 * GB],
+        ["/data/Movies/Alpha (2001)/Alpha.iso", 30 * GB],
+        ["/data/Movies/stray.mkv", 1 * GB],
+    ]}
+    m = Model(r, walk)
+    by = {g["folder"]: g for g in m.unindexed}
+    gamma = by["/data/Movies/Gamma (1990)"]
+    assert gamma["title"] is None and gamma["arr"]["id"] == 9 and gamma["arr"]["file"] == "gamma.iso"
+    assert gamma["arr"]["has_file"] and gamma["arr"]["profile"] == "Best"
+    assert by["/data/Movies/Alpha (2001)"]["arr"]["id"] == 7, "folders Plex has a title for link too"
+    assert by["/data/Movies/stray.mkv"]["arr"] is None, "a loose file in the library root isn't a movie folder"
+
+
 def test_extras():
     making = "/data/Movies/Beta (2005)/Featurettes/Making Beta.mkv"
     blooper = "/data/TV/Show/Season 1/Bloopers-Short.avi"

@@ -66,6 +66,8 @@ Open `http://localhost:8892`. The demo is an invented library of 150 movies and 
 | Drop list | Shortlist titles, seasons or single versions, see the total, and delete with a typed confirmation. |
 | Downgrade | Search Radarr or Sonarr for a smaller release (4K to 1080p, 1080p to 720p), pick one, and let the *arr swap it in. |
 | Not in Plex | Disc images and rips, interrupted transfers and other files on disk that Plex doesn't index. Search, filter by category, sort, and page through it. |
+| Cleanup script | Tick files or whole folders in Not in Plex and get a script that deletes them, or moves them to a holding folder: bash for the server, PowerShell for a Windows PC on the share. It lists the files and asks before touching anything. |
+| Replacement | A movie folder Plex has no title for (usually a disc rip Radarr tracks) can be swapped for a playable 1080p or 720p release, picked the same way as a downgrade. |
 | Downgrades and Deleted | Running and finished downgrades, and a permanent record of everything deleted: title, size, files, who watched it, who asked for it. |
 
 ## Requirements
@@ -112,7 +114,7 @@ If you'd rather configure with environment variables (or a `.env` file, see `.en
 | `CAPACITY_PATHS` | free space | Instead of Unraid: comma-separated paths inside the container on your media filesystem(s). |
 | `WALK_PATHS` | "Not in Plex" | `plex path=container path`, comma separated, e.g. `/data/movies=/media/movies`. Mount the media read-only. |
 | `WALK_AFTER_REFRESH` | | Walk after every rebuild (on by default). |
-| `DISPLAY_PATHS` | | How paths are shown and copied, e.g. `/data=/mnt/user/media`. |
+| `DISPLAY_PATHS` | | How paths are shown and copied, e.g. `/data=/mnt/user/media`. Also the starting point for bash cleanup scripts. |
 | `RECLAIM_READ_ONLY` | | `1` turns off deletes and downgrades. |
 | `RECLAIM_USER`, `RECLAIM_PASSWORD` | | Require HTTP basic auth. Put a TLS proxy in front if Reclaim is reachable from outside your LAN. |
 | `RECLAIM_REFRESH_HOUR`, `TZ` | | Nightly rebuild hour (default 4) and its timezone. |

@@ -17,3 +17,5 @@ jobs:
         env:
           RECLAIM_DATA: /tmp/reclaim-ci
       - run: node -e "new Function(require('fs').readFileSync('backend/static/app.js','utf8'))"
+      - run: node -e "new Function(require('fs').readFileSync('backend/static/cleanup.js','utf8'))"
+      - run: node tests/test_cleanup.mjs

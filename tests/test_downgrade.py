@@ -70,6 +70,24 @@ def test_candidates():
     assert [x["title"] for x in anime if x["recommended"]] == ["Show.S02.720p.DUAL.WEB-DL"]
 
 
+def test_replace_mode():
+    """Replacing a disc rip (or a file Plex never matched): no saving required, blockers still block."""
+    rels = [
+        rel("Safe.2012.1080p.BluRay-A", "Bluray-1080p", 1080, 12 * GB, ["Existing file meets cutoff: BR-DISK"], weight=1),
+        rel("Safe.2012.1080p.WEB-B", "WEBDL-1080p", 1080, 6 * GB, weight=3),
+        rel("Safe.2012.1080p.old", "Bluray-1080p", 1080, 8 * GB, ["Older than configured retention"], weight=0),
+        rel("Safe.2012.1080p.Remux", "Remux-1080p", 1080, 30 * GB, weight=0),                 # big quality: never offered
+    ]
+    by = {x["title"]: x for x in D.candidates(rels, 1080, 0, 94, need_saving=False)}   # Radarr has no file: nothing to save against
+    assert "Safe.2012.1080p.Remux" not in by
+    assert by["Safe.2012.1080p.BluRay-A"]["ok"] and by["Safe.2012.1080p.WEB-B"]["ok"]
+    assert not by["Safe.2012.1080p.old"]["ok"]
+    assert [t for t, x in by.items() if x["recommended"]] == ["Safe.2012.1080p.BluRay-A"], "the arr's own preference"
+    # the same releases against a 10 GB file in downgrade mode: the 12 GB one isn't a saving
+    down = {x["title"]: x for x in D.candidates(rels, 1080, 10 * GB, 94)}
+    assert not down["Safe.2012.1080p.BluRay-A"]["ok"] and down["Safe.2012.1080p.WEB-B"]["recommended"]
+
+
 if __name__ == "__main__":
     n = 0
     for name, fn in list(globals().items()):

@@ -266,6 +266,12 @@ table.mini tr.drop td { text-decoration: line-through; text-decoration-color: va
 .modal-box label.chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 10px 0; }
 .modal-box input[type="text"] { border: 1px solid var(--ring); background: var(--raised); border-radius: 7px; padding: 6px 10px; width: 160px; font-family: var(--mono); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; align-items: center; }
+.modal-box.wide { width: min(940px, 100%); }
+.modal-box pre.script { max-height: 320px; overflow: auto; margin: 10px 0 0; padding: 8px 10px; background: var(--raised);
+  border: 1px solid var(--grid); border-radius: 6px; font-family: var(--mono); font-size: 11px; line-height: 1.45; white-space: pre; }
+.map-row { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 6px 0; flex-wrap: wrap; }
+.map-row code { font-family: var(--mono); }
+.modal-box .map-row input[type="text"] { flex: 1 1 260px; min-width: 0; width: auto; }
 .res-ok { color: var(--good); }
 .res-bad { color: var(--crit); }
 
@@ -358,6 +364,7 @@ table.mini tr.drop td { text-decoration: line-through; text-decoration-color: va
 .ugroup summary { cursor: pointer; display: grid; grid-template-columns: 1fr 90px; gap: 10px; list-style: none; }
 .ugroup summary::-webkit-details-marker { display: none; }
 .ugroup summary > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.ugroup summary input[type="checkbox"] { vertical-align: -2px; }
 .ugroup .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
 .ugroup .files { margin: 6px 0 0 0; }
 .loose-filters { background: var(--surface); margin-top: 12px; }
