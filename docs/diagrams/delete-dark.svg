@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="196" viewBox="0 0 960 196" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif" role="img">
+<defs>
+<marker id="arrow-base" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#656c76"/></marker>
+<marker id="arrow-blue" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#58a6ff"/></marker>
+<marker id="arrow-plex" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#e5a00d"/></marker>
+<marker id="arrow-green" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#3fb950"/></marker>
+<marker id="arrow-red" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#ff7b72"/></marker>
+<marker id="arrow-violet" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#d2a8ff"/></marker>
+<marker id="arrow-slate" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#8b949e"/></marker>
+<filter id="lift" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#000000" flood-opacity="0.45"/></filter>
+</defs>
+<rect x="162" y="36" width="638" height="132" rx="12" fill="none" stroke="#58a6ff" stroke-width="1.2" stroke-dasharray="5 5"/>
+<rect x="176" y="26" width="100" height="20" rx="10" fill="#0d1117"/>
+<text x="185" y="40" font-size="11.5" font-weight="700" letter-spacing="0.6" fill="#58a6ff">for each item</text>
+<path d="M150.0,108.0 C178.0,108.0 144.0,108.0 170.0,108.0" fill="none" stroke="#656c76" stroke-width="1.6" marker-end="url(#arrow-base)"/>
+<path d="M310.0,108.0 C338.0,108.0 304.0,108.0 330.0,108.0" fill="none" stroke="#656c76" stroke-width="1.6" marker-end="url(#arrow-base)"/>
+<path d="M470.0,108.0 C498.0,108.0 464.0,108.0 490.0,108.0" fill="none" stroke="#656c76" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#arrow-base)"/>
+<path d="M630.0,108.0 C658.0,108.0 624.0,108.0 650.0,108.0" fill="none" stroke="#656c76" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#arrow-base)"/>
+<path d="M790.0,108.0 C818.0,108.0 784.0,108.0 810.0,108.0" fill="none" stroke="#656c76" stroke-width="1.6" marker-end="url(#arrow-base)"/>
+<g filter="url(#lift)"><rect x="12" y="62" width="138" height="92" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-s1-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8b949e" stop-opacity="0.16"/><stop offset="1" stop-color="#8b949e" stop-opacity="0"/></linearGradient></defs>
+<rect x="12.5" y="62.5" width="137" height="44" rx="10.5" fill="url(#wash-s1-dark)"/>
+<text x="81.0" y="82.5" font-size="11" font-weight="700" letter-spacing="1.3" fill="#8b949e" text-anchor="middle">YOU</text>
+<text x="81.0" y="103.5" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Confirm</text>
+<text x="81.0" y="122.5" font-size="13" fill="#9198a1" text-anchor="middle">tick items,</text>
+<text x="81.0" y="139.5" font-size="13" fill="#9198a1" text-anchor="middle">type DELETE</text>
+<g filter="url(#lift)"><rect x="172" y="62" width="138" height="92" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-s2-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e5a00d" stop-opacity="0.16"/><stop offset="1" stop-color="#e5a00d" stop-opacity="0"/></linearGradient></defs>
+<rect x="172.5" y="62.5" width="137" height="44" rx="10.5" fill="url(#wash-s2-dark)"/>
+<text x="241.0" y="82.5" font-size="11" font-weight="700" letter-spacing="1.3" fill="#e5a00d" text-anchor="middle">PLEX</text>
+<text x="241.0" y="103.5" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Delete</text>
+<text x="241.0" y="122.5" font-size="13" fill="#9198a1" text-anchor="middle">the files go</text>
+<text x="241.0" y="139.5" font-size="13" fill="#9198a1" text-anchor="middle">from disk</text>
+<g filter="url(#lift)"><rect x="332" y="62" width="138" height="92" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-s3-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#58a6ff" stop-opacity="0.16"/><stop offset="1" stop-color="#58a6ff" stop-opacity="0"/></linearGradient></defs>
+<rect x="332.5" y="62.5" width="137" height="44" rx="10.5" fill="url(#wash-s3-dark)"/>
+<text x="401.0" y="82.5" font-size="11" font-weight="700" letter-spacing="1.3" fill="#58a6ff" text-anchor="middle">RECLAIM</text>
+<text x="401.0" y="103.5" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Check</text>
+<text x="401.0" y="122.5" font-size="13" fill="#9198a1" text-anchor="middle">gone from</text>
+<text x="401.0" y="139.5" font-size="13" fill="#9198a1" text-anchor="middle">the library?</text>
+<g filter="url(#lift)"><rect x="492" y="62" width="138" height="92" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-s4-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3fb950" stop-opacity="0.16"/><stop offset="1" stop-color="#3fb950" stop-opacity="0"/></linearGradient></defs>
+<rect x="492.5" y="62.5" width="137" height="44" rx="10.5" fill="url(#wash-s4-dark)"/>
+<text x="561.0" y="82.5" font-size="11" font-weight="700" letter-spacing="1.3" fill="#3fb950" text-anchor="middle">RADARR / SONARR</text>
+<text x="561.0" y="103.5" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Unmonitor</text>
+<text x="561.0" y="122.5" font-size="13" fill="#9198a1" text-anchor="middle">if ticked, so it</text>
+<text x="561.0" y="139.5" font-size="13" fill="#9198a1" text-anchor="middle">is not re-fetched</text>
+<g filter="url(#lift)"><rect x="652" y="62" width="138" height="92" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-s5-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#58a6ff" stop-opacity="0.16"/><stop offset="1" stop-color="#58a6ff" stop-opacity="0"/></linearGradient></defs>
+<rect x="652.5" y="62.5" width="137" height="44" rx="10.5" fill="url(#wash-s5-dark)"/>
+<text x="721.0" y="82.5" font-size="11" font-weight="700" letter-spacing="1.3" fill="#58a6ff" text-anchor="middle">RECLAIM</text>
+<text x="721.0" y="103.5" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Record</text>
+<text x="721.0" y="122.5" font-size="13" fill="#9198a1" text-anchor="middle">on the</text>
+<text x="721.0" y="139.5" font-size="13" fill="#9198a1" text-anchor="middle">Deleted tab</text>
+<g filter="url(#lift)"><rect x="812" y="62" width="138" height="92" rx="11" fill="#151b23" stroke="#58a6ff" stroke-width="1.4"/></g>
+<defs><linearGradient id="wash-s6-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#58a6ff" stop-opacity="0.16"/><stop offset="1" stop-color="#58a6ff" stop-opacity="0"/></linearGradient></defs>
+<rect x="812.5" y="62.5" width="137" height="44" rx="10.5" fill="url(#wash-s6-dark)"/>
+<text x="881.0" y="82.5" font-size="11" font-weight="700" letter-spacing="1.3" fill="#58a6ff" text-anchor="middle">RECLAIM</text>
+<text x="881.0" y="103.5" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Rebuild</text>
+<text x="881.0" y="122.5" font-size="13" fill="#9198a1" text-anchor="middle">free space</text>
+<text x="881.0" y="139.5" font-size="13" fill="#9198a1" text-anchor="middle">re-read</text>
+</svg>

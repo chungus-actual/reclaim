@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="500" viewBox="0 0 960 500" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif" role="img">
+<defs>
+<marker id="arrow-base" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#656c76"/></marker>
+<marker id="arrow-blue" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#58a6ff"/></marker>
+<marker id="arrow-plex" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#e5a00d"/></marker>
+<marker id="arrow-green" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#3fb950"/></marker>
+<marker id="arrow-red" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#ff7b72"/></marker>
+<marker id="arrow-violet" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#d2a8ff"/></marker>
+<marker id="arrow-slate" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.2 L9,5 L1,8.8 Q2.6,5 1,1.2 Z" fill="#8b949e"/></marker>
+<filter id="lift" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#000000" flood-opacity="0.45"/></filter>
+</defs>
+<rect x="336" y="16" width="608" height="468" rx="14" fill="#151b23" fill-opacity="0.55"/>
+<text x="352" y="38" font-size="11.5" font-weight="700" letter-spacing="1.4" fill="#6e7681">RECLAIM</text>
+<rect x="16" y="16" width="300" height="468" rx="14" fill="#151b23" fill-opacity="0.55"/>
+<text x="32" y="38" font-size="11.5" font-weight="700" letter-spacing="1.4" fill="#6e7681">YOUR SERVICES</text>
+<path d="M296.0,79.0 C357.7,79.0 334.3,172.8 394.0,172.8" fill="none" stroke="#656c76" stroke-width="1.6" marker-end="url(#arrow-base)"/>
+<path d="M296.0,151.0 C347.6,151.0 344.4,207.0 394.0,207.0" fill="none" stroke="#656c76" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#arrow-base)"/>
+<path d="M296.0,223.0 C342.1,223.0 349.9,245.0 394.0,245.0" fill="none" stroke="#656c76" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#arrow-base)"/>
+<path d="M296.0,295.0 C341.3,295.0 350.7,283.0 394.0,283.0" fill="none" stroke="#656c76" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#arrow-base)"/>
+<path d="M296.0,367.0 C346.3,367.0 345.7,317.2 394.0,317.2" fill="none" stroke="#656c76" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#arrow-base)"/>
+<path d="M296.0,439.0 C406.0,439.0 686.0,404.0 686.0,296.0" fill="none" stroke="#656c76" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#arrow-base)"/>
+<path d="M566.0,245.0 C594.0,245.0 578.0,245.0 604.0,245.0" fill="none" stroke="#656c76" stroke-width="1.6" marker-end="url(#arrow-base)"/>
+<path d="M766.0,245.0 C794.0,245.0 768.0,245.0 794.0,245.0" fill="none" stroke="#656c76" stroke-width="1.6" marker-end="url(#arrow-base)"/>
+<g filter="url(#lift)"><rect x="36" y="48" width="260" height="62" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-plex-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e5a00d" stop-opacity="0.16"/><stop offset="1" stop-color="#e5a00d" stop-opacity="0"/></linearGradient></defs>
+<rect x="36.5" y="48.5" width="259" height="44" rx="10.5" fill="url(#wash-plex-dark)"/>
+<text x="166.0" y="62.0" font-size="11" font-weight="700" letter-spacing="1.3" fill="#e5a00d" text-anchor="middle">PLEX</text>
+<text x="166.0" y="83.0" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Media Server</text>
+<text x="166.0" y="102.0" font-size="13" fill="#9198a1" text-anchor="middle">library, sizes, history, accounts</text>
+<g filter="url(#lift)"><rect x="36" y="120" width="260" height="62" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-taut-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8b949e" stop-opacity="0.16"/><stop offset="1" stop-color="#8b949e" stop-opacity="0"/></linearGradient></defs>
+<rect x="36.5" y="120.5" width="259" height="44" rx="10.5" fill="url(#wash-taut-dark)"/>
+<text x="166.0" y="134.0" font-size="11" font-weight="700" letter-spacing="1.3" fill="#8b949e" text-anchor="middle">OPTIONAL</text>
+<text x="166.0" y="155.0" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Tautulli</text>
+<text x="166.0" y="174.0" font-size="13" fill="#9198a1" text-anchor="middle">partial plays, watch time</text>
+<g filter="url(#lift)"><rect x="36" y="192" width="260" height="62" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-seerr-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d2a8ff" stop-opacity="0.16"/><stop offset="1" stop-color="#d2a8ff" stop-opacity="0"/></linearGradient></defs>
+<rect x="36.5" y="192.5" width="259" height="44" rx="10.5" fill="url(#wash-seerr-dark)"/>
+<text x="166.0" y="206.0" font-size="11" font-weight="700" letter-spacing="1.3" fill="#d2a8ff" text-anchor="middle">OPTIONAL</text>
+<text x="166.0" y="227.0" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Overseerr / Jellyseerr</text>
+<text x="166.0" y="246.0" font-size="13" fill="#9198a1" text-anchor="middle">who requested what</text>
+<g filter="url(#lift)"><rect x="36" y="264" width="260" height="62" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-arr-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3fb950" stop-opacity="0.16"/><stop offset="1" stop-color="#3fb950" stop-opacity="0"/></linearGradient></defs>
+<rect x="36.5" y="264.5" width="259" height="44" rx="10.5" fill="url(#wash-arr-dark)"/>
+<text x="166.0" y="278.0" font-size="11" font-weight="700" letter-spacing="1.3" fill="#3fb950" text-anchor="middle">OPTIONAL</text>
+<text x="166.0" y="299.0" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Radarr / Sonarr</text>
+<text x="166.0" y="318.0" font-size="13" fill="#9198a1" text-anchor="middle">monitored, profiles; or via Seerr</text>
+<g filter="url(#lift)"><rect x="36" y="336" width="260" height="62" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-cap-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8b949e" stop-opacity="0.16"/><stop offset="1" stop-color="#8b949e" stop-opacity="0"/></linearGradient></defs>
+<rect x="36.5" y="336.5" width="259" height="44" rx="10.5" fill="url(#wash-cap-dark)"/>
+<text x="166.0" y="350.0" font-size="11" font-weight="700" letter-spacing="1.3" fill="#8b949e" text-anchor="middle">OPTIONAL</text>
+<text x="166.0" y="371.0" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Free space</text>
+<text x="166.0" y="390.0" font-size="13" fill="#9198a1" text-anchor="middle">Unraid API, or disk folders</text>
+<g filter="url(#lift)"><rect x="36" y="408" width="260" height="62" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-walk-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#58a6ff" stop-opacity="0.16"/><stop offset="1" stop-color="#58a6ff" stop-opacity="0"/></linearGradient></defs>
+<rect x="36.5" y="408.5" width="259" height="44" rx="10.5" fill="url(#wash-walk-dark)"/>
+<text x="166.0" y="422.0" font-size="11" font-weight="700" letter-spacing="1.3" fill="#58a6ff" text-anchor="middle">OPTIONAL</text>
+<text x="166.0" y="443.0" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Disk walk</text>
+<text x="166.0" y="462.0" font-size="13" fill="#9198a1" text-anchor="middle">every file and its size</text>
+<g filter="url(#lift)"><rect x="396" y="150" width="170" height="190" rx="11" fill="#151b23" stroke="#58a6ff" stroke-width="1.4"/></g>
+<defs><linearGradient id="wash-snap-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#58a6ff" stop-opacity="0.16"/><stop offset="1" stop-color="#58a6ff" stop-opacity="0"/></linearGradient></defs>
+<rect x="396.5" y="150.5" width="169" height="44" rx="10.5" fill="url(#wash-snap-dark)"/>
+<text x="481.0" y="219.5" font-size="11" font-weight="700" letter-spacing="1.3" fill="#58a6ff" text-anchor="middle">SNAPSHOT</text>
+<text x="481.0" y="240.5" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">raw.json.gz</text>
+<text x="481.0" y="259.5" font-size="13" fill="#9198a1" text-anchor="middle">rebuilt on Refresh,</text>
+<text x="481.0" y="276.5" font-size="13" fill="#9198a1" text-anchor="middle">kept between runs</text>
+<g filter="url(#lift)"><rect x="606" y="196" width="160" height="98" rx="11" fill="#151b23" stroke="#58a6ff" stroke-width="1.4"/></g>
+<defs><linearGradient id="wash-model-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#58a6ff" stop-opacity="0.16"/><stop offset="1" stop-color="#58a6ff" stop-opacity="0"/></linearGradient></defs>
+<rect x="606.5" y="196.5" width="159" height="44" rx="10.5" fill="url(#wash-model-dark)"/>
+<text x="686.0" y="219.5" font-size="11" font-weight="700" letter-spacing="1.3" fill="#58a6ff" text-anchor="middle">MODEL</text>
+<text x="686.0" y="240.5" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">Titles + people</text>
+<text x="686.0" y="259.5" font-size="13" fill="#9198a1" text-anchor="middle">plays, viewers,</text>
+<text x="686.0" y="276.5" font-size="13" fill="#9198a1" text-anchor="middle">unindexed files</text>
+<g filter="url(#lift)"><rect x="796" y="196" width="132" height="98" rx="11" fill="#151b23" stroke="#3d444d" stroke-width="1"/></g>
+<defs><linearGradient id="wash-page-dark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#58a6ff" stop-opacity="0.16"/><stop offset="1" stop-color="#58a6ff" stop-opacity="0"/></linearGradient></defs>
+<rect x="796.5" y="196.5" width="131" height="44" rx="10.5" fill="url(#wash-page-dark)"/>
+<text x="862.0" y="219.5" font-size="11" font-weight="700" letter-spacing="1.3" fill="#58a6ff" text-anchor="middle">YOUR BROWSER</text>
+<text x="862.0" y="240.5" font-size="16" font-weight="600" fill="#e6edf3" text-anchor="middle">The page</text>
+<text x="862.0" y="259.5" font-size="13" fill="#9198a1" text-anchor="middle">treemap, table,</text>
+<text x="862.0" y="276.5" font-size="13" fill="#9198a1" text-anchor="middle">drop list</text>
+<text x="930" y="470" font-size="12.5" fill="#9198a1" text-anchor="end">solid: needed  ·  dashed: optional, each adds a lens</text>
+</svg>
