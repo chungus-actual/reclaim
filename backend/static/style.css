@@ -258,11 +258,17 @@ table.mini th { text-align: left; color: var(--muted); font-weight: 500; padding
 table.mini td { padding: 4px 6px; border-bottom: 1px solid var(--grid); vertical-align: top; }
 table.mini td.n, table.mini th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 table.mini tr.drop td { text-decoration: line-through; text-decoration-color: var(--crit); }
+/* a callout takes its colour all round (border and a faint wash), never as an edge stripe */
 .callout {
-  border: 1px solid var(--ring); border-left: 3px solid var(--crit); background: var(--wash);
+  border: 1px solid var(--ring); background: var(--wash);
+  border-color: color-mix(in srgb, var(--crit) 50%, var(--ring));
+  background: color-mix(in srgb, var(--crit) 7%, var(--wash));
   border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--ink2); margin-top: 10px;
 }
-.callout.info { border-left-color: var(--focus); }
+.callout.info {
+  border-color: color-mix(in srgb, var(--focus) 50%, var(--ring));
+  background: color-mix(in srgb, var(--focus) 7%, var(--wash));
+}
 .badge { font-size: 10px; border: 1px solid var(--ring); border-radius: 4px; padding: 0 4px; color: var(--ink2); white-space: nowrap; }
 .badge.crit { border-color: var(--crit); color: var(--crit); }
 
