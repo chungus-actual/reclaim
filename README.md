@@ -50,7 +50,7 @@ services, and has no accounts or telemetry.
 
 | | |
 |---|---|
-| **Where the space goes** | Free space, and the used space split by when anything was last played (never, 5+ years, 3 to 5, 1 to 3, under a year), files Plex doesn't index, and everything else on the disks. A marker shows the free space after your drop list |
+| **Where the space goes** | Free space with a chart of it over time, and the used space split by when anything was last played (never, 5+ years, 3 to 5, 1 to 3, under a year), files Plex doesn't index, and everything else on the disks. A marker shows the free space after your drop list |
 | **Treemap and scatter** | Every title sized by disk use and shaded by time since anyone played it; size against years since the last play on a log scale, movies and TV side by side. Click for detail, shift-click or drag a region to select |
 | **Breakdowns** | Space by last played, by number of viewers, and, with Overseerr or Jellyseerr, by who requested it and how much of that the requester never played. Click a bar to filter by it |
 | **Table and filters** | Size, last played, viewers, plays, hours, added, requester, resolution and Radarr/Sonarr status. Sort on any column; filter by library, title, time since played, viewers, date added, size and requester |
@@ -99,7 +99,7 @@ Not in Plex tab starts one by hand.
 git clone https://github.com/chungus-actual/reclaim.git && cd reclaim
 python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
 .venv/bin/python tools/demo_data.py --data data-demo
-cd backend && RECLAIM_DEMO=1 RECLAIM_DATA=../data-demo ../.venv/bin/uvicorn main:app --port 8892
+cd backend && RECLAIM_DEMO=1 RECLAIM_DATA=../data-demo RECLAIM_HOST=127.0.0.1 ../.venv/bin/python main.py
 ```
 
 Open `http://localhost:8892`. The demo is an invented library of 150 movies and 30 shows on a nearly
@@ -135,7 +135,7 @@ found. A test never changes anything on the other side.
 
 | Setting | Value |
 |---|---|
-| Port | `8892` |
+| Port | `8892`, or `RECLAIM_PORT` in `.env` (the mapping and the app follow it) |
 | `./config:/config` | settings, the database, the snapshot and poster thumbnails |
 | Media (optional) | mount it **read-only** for the disk walk, e.g. `/path/to/Movies:/media/movies:ro`, then map it in Settings > Disk walk |
 | `.env` (optional) | anything set there overrides the app; see `.env.example` |
@@ -169,6 +169,8 @@ Environment variables (or a `.env` file in the repo root, in `/config`, or at `R
 | `RECLAIM_READ_ONLY` | `0` | | `1` turns off deletes, downgrades and replacements |
 | `RECLAIM_USER`, `RECLAIM_PASSWORD` | | | HTTP basic auth on everything but `/api/health`. Put a TLS proxy in front if Reclaim is reachable from outside your LAN |
 | `RECLAIM_REFRESH_HOUR`, `TZ` | `4`, `UTC` in Compose | | The nightly rebuild hour and its timezone |
+| `RECLAIM_PORT` | `8892` | | The port Reclaim listens on. Environment only |
+| `RECLAIM_HOST` | `0.0.0.0` | | The address it listens on; `127.0.0.1` keeps it to this machine. Environment only |
 | `RECLAIM_STALE_HOURS` | `20` | | Rebuild at start when the snapshot is older than this. Environment only |
 | `RECLAIM_DATA` | `/config` in Docker | | Where state lives (`data/` beside `backend/` outside Docker). Environment only |
 | `RECLAIM_DEMO` | `0` | | `1` serves the demo library from `tools/demo_data.py`, read-only. Environment only |
@@ -178,7 +180,7 @@ Environment variables (or a `.env` file in the repo root, in `/config`, or at `R
 | File | Holds |
 |---|---|
 | `settings.json` | what you saved in Settings |
-| `reclaim.db` | SQLite: the drop list, kept titles, the deletion record, downgrade jobs and a capacity history |
+| `reclaim.db` | SQLite: the drop list, kept titles, the deletion record, downgrade jobs, and the free space at every rebuild and delete (the chart) |
 | `raw.json.gz` | the last snapshot of every source |
 | `walk.json.gz`, `extras.json.gz` | the last disk walk, and the Plex extras looked up for it |
 | `thumbs/` | poster thumbnails fetched from Plex |
@@ -307,10 +309,10 @@ you're filtering on the Sidecar category.
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
-cd backend && RECLAIM_DATA=../data ../.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8892
+cd backend && RECLAIM_DATA=../data ../.venv/bin/python main.py
 ```
 
-Then open the page and set it up in Settings.
+Then open `http://<host>:8892` (or your `RECLAIM_PORT`) and set it up in Settings.
 
 ## What leaves your network
 

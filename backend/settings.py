@@ -84,8 +84,11 @@ def payload():
         for key, label, placeholder, help_ in g["fields"]:
             kind = C.FIELDS[key][1]
             v = eff[key]
+            locked = C.env_source(key)
+            if C.DEMO and key == "RECLAIM_READ_ONLY":
+                v, locked = True, "RECLAIM_DEMO"        # the demo is always read-only (config.reload)
             f = {"key": key, "label": label, "kind": kind, "placeholder": placeholder, "help": help_,
-                 "locked": C.env_source(key)}
+                 "locked": locked}
             if kind in C.SECRET_KINDS:
                 f["set"] = bool(v)
             else:
@@ -245,7 +248,7 @@ async def test_plex(s, lines, data, model):
         if r.status_code == 200:
             lines.append(["ok", f"Can read watch history ({r.json()['MediaContainer'].get('totalSize', 0):,} plays)."])
         else:
-            lines.append(["error", "This token can't read watch history — use the server owner's token."])
+            lines.append(["error", "This token can't read watch history. Use the server owner's token."])
         r = await http.get(url + "/:/prefs", headers=_plex_headers(token))
         if r.status_code == 200:
             prefs = {p["id"]: p.get("value") for p in r.json()["MediaContainer"].get("Setting", [])}
@@ -314,7 +317,7 @@ async def _test_arr(s, lines, data, want, url, key):
             lines.append(["error", "Wrong API key."])
             return
         if r.status_code != 200:
-            lines.append(["error", f"{url} answered HTTP {r.status_code} — is that the {want} address (and its URL base)?"])
+            lines.append(["error", f"{url} answered HTTP {r.status_code}. Is that the {want} address (and its URL base)?"])
             return
         st = r.json()
         app = st.get("appName") or st.get("instanceName") or "?"
@@ -328,8 +331,8 @@ async def _test_arr(s, lines, data, want, url, key):
         mm = (await http.get(base + "/config/mediamanagement", headers=h)).json()
         flag = "autoUnmonitorPreviouslyDownloadedMovies" if want == "Radarr" else "autoUnmonitorPreviouslyDownloadedEpisodes"
         if mm.get(flag) is False:
-            lines.append(["ok", f"“Unmonitor deleted {'movies' if want == 'Radarr' else 'episodes'}” is off in {want} — "
-                                "reclaim unmonitors each title it deletes, so nothing gets re-downloaded."])
+            lines.append(["ok", f"“Unmonitor deleted {'movies' if want == 'Radarr' else 'episodes'}” is off in {want}. "
+                                "Reclaim unmonitors each title it deletes, so nothing gets re-downloaded."])
         profiles = (await http.get(base + "/qualityprofile", headers=h)).json()
         mine = [p["name"] for p in profiles if p["name"].startswith("Reclaim ↓")]
         lines.append(["ok", f"{len(profiles)} quality profiles" + (f" (incl. {', '.join(mine)})" if mine else "") + "."])
@@ -389,7 +392,7 @@ async def test_capacity(s, lines, data, model):
         try:
             d = r.json()
         except ValueError:
-            lines.append(["error", f"HTTP {r.status_code}, not a GraphQL answer — the URL usually ends in /graphql."])
+            lines.append(["error", f"HTTP {r.status_code}, not a GraphQL answer. The URL usually ends in /graphql."])
             return
         if d.get("errors"):
             msg = d["errors"][0].get("message", "")
@@ -417,8 +420,8 @@ async def test_capacity(s, lines, data, model):
         total += u.total
         lines.append(["ok", f"{p}: {u.free / 1e12:.2f} TB free of {u.total / 1e12:.2f} TB."])
     if model and total and total < sum(model.lib_bytes.values()) * 0.95:
-        lines.append(["warn", f"That's less than the {sum(model.lib_bytes.values()) / 1e12:.1f} TB Plex indexes — "
-                              "these folders probably aren't on the media disks."])
+        lines.append(["warn", f"That's less than the {sum(model.lib_bytes.values()) / 1e12:.1f} TB Plex indexes. "
+                              "These folders probably aren't on the media disks."])
 
 
 async def test_walk(s, lines, data, model):
@@ -431,7 +434,7 @@ async def test_walk(s, lines, data, model):
         roots = [r.rstrip("/") for sec in model.sections.values() for r in sec["roots"]]
     for plex, local in pairs:
         if not os.path.isdir(local):
-            lines.append(["error", f"{local}: not found inside reclaim's container — is the media mounted there?"])
+            lines.append(["error", f"{local}: not found inside reclaim's container. Is the media mounted there?"])
             continue
         try:
             n = len(os.listdir(local))

@@ -1,6 +1,6 @@
 """Thin async clients for every upstream reclaim reads from.
 
-Each fetch trims the payload to the fields the model uses — the raw Plex
+Each fetch trims the payload to the fields the model uses: the raw Plex
 episode listing alone is ~100 MB of cast lists and artwork URLs.
 """
 import asyncio

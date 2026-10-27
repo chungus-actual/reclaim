@@ -20,7 +20,7 @@ log = logging.getLogger("reclaim.downgrade")
 TIERS = (1080, 720)
 BIG_NAMES = re.compile(r"remux|br-disk|raw-hd", re.I)
 EXTRAS = re.compile(r"(?<![a-z])(extras?|specials?|featurettes?|bonus|behind[ ._-]the[ ._-]scenes|sample|trailer)(?![a-z])", re.I)
-# rejection text that only reflects quality ranking / the current profile / size rules —
+# rejection text that only reflects quality ranking / the current profile / size rules:
 # irrelevant once the item sits on the downsize profile. Everything else blocks.
 BENIGN = re.compile(r"meets cutoff|not wanted in profile|equal or higher preference|does not allow upgrades|"
                     r"not an upgrade|custom format|smaller than minimum allowed|larger than maximum allowed", re.I)
@@ -108,11 +108,11 @@ def classify(rel, target, current_bytes, runtime_min, season, app="arr"):
     if EXTRAS.search(rel.get("title") or ""):
         blockers.append("looks like extras/specials, not the episodes")
     if mbpm is not None and mbpm < floor * 0.4:
-        blockers.append(f"{mbpm:.1f} MB/min — too small to be the whole thing")
+        blockers.append(f"{mbpm:.1f} MB/min, too small to be the whole thing")
     elif mbpm is not None and mbpm < floor:
         warnings.append(f"low bitrate ({mbpm:.1f} MB/min)")
     if re.search(r"(?<![a-z0-9])av1(?![a-z0-9])", rel.get("title") or "", re.I):
-        warnings.append("AV1 — older Plex clients have to transcode it")
+        warnings.append("AV1: older Plex clients have to transcode it")
     langs = [l.get("name") for l in rel.get("languages") or [] if l.get("name")]
     multi = len(langs) > 1 or bool(MULTI_AUDIO.search(rel.get("title") or ""))
     saves = current_bytes - rel["size"]

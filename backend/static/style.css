@@ -1,4 +1,4 @@
-/* reclaim — tokens from the dataviz reference palette; dark is its own stepped set. */
+/* reclaim: tokens from the dataviz reference palette; dark is its own stepped set. */
 :root {
   color-scheme: light;
   --page: #f9f9f7;
@@ -98,7 +98,7 @@ h3 { margin: 0; font-size: 13px; font-weight: 600; }
 .spacer { flex: 1; }
 
 /* ---------------------------------------------------------------- capacity */
-.capacity { display: grid; grid-template-columns: auto 1fr; gap: 6px 28px; align-items: end; }
+.capacity { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 28px; align-items: end; }
 .hero-n { font-size: 48px; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
 .hero-l { color: var(--ink2); font-size: 13px; margin-top: 6px; }
 .tiles { display: flex; gap: 28px; flex-wrap: wrap; justify-content: flex-end; }
@@ -121,6 +121,27 @@ h3 { margin: 0; font-size: 13px; font-weight: 600; }
 .legend .sw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
 .legend .v { color: var(--ink); font-variant-numeric: tabular-nums; }
 .caplegend { grid-column: 1 / -1; margin-top: 8px; }
+/* free space over time, between the hero number and the tiles: a de-emphasis area, the latest reading in the accent */
+.trend { min-width: 0; width: 100%; max-width: 560px; justify-self: center; }
+.trend-h { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.trend-h .trend-d { color: var(--ink2); }
+.trend svg { display: block; overflow: visible; cursor: crosshair; }
+.trend svg:focus { outline: none; }
+.trend svg:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 2px; }
+.trend .base { stroke: var(--grid); stroke-width: 1; }
+.trend .area { fill: var(--muted); fill-opacity: 0.12; }
+.trend .line { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.trend .now { fill: var(--focus); stroke: var(--surface); stroke-width: 2; }
+.trend .xhair { stroke: var(--axis); stroke-width: 1; }
+.trend .hov { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.trend .lab { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.trend-empty { font-size: 12px; color: var(--muted); padding: 6px 0 4px; }
+@media (max-width: 1300px) {
+  .capacity { grid-template-columns: auto 1fr; }
+  .trend { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; max-width: none; }
+}
+/* a fixed selection bar never covers the last rows */
+body:has(.selbar:not([hidden])) main { padding-bottom: 72px; }
 .capspark { grid-column: 1 / -1; }
 
 /* ----------------------------------------------------------------- filters */

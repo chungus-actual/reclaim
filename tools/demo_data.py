@@ -1,7 +1,7 @@
 """Write a made-up library for trying reclaim (and for screenshots) without connecting anything.
 
   python tools/demo_data.py --data data-demo
-  cd backend && RECLAIM_DEMO=1 RECLAIM_DATA=../data-demo uvicorn main:app --port 8892
+  cd backend && RECLAIM_DEMO=1 RECLAIM_DATA=../data-demo RECLAIM_HOST=127.0.0.1 python main.py
 
 Everything is invented: titles, people, plays, requests, Radarr/Sonarr records, the array, past deletions
 and downgrades. Demo mode is read-only and talks to no service. Never point --data at a real data folder.
@@ -207,16 +207,21 @@ def write(data_dir: Path, seed=7):
         c.execute("DELETE FROM deletions")
         c.execute("DELETE FROM downgrades")
         for d in range(150, -1, -1):                      # four months of the array filling up
-            u = used - int(d * 0.0021 * total) + rnd.randint(-2, 2) * GB * 40
+            u = used - int(d * 0.0021 * total) + (rnd.randint(-2, 2) * GB * 40 if d else 0)   # today = the array now
             c.execute("INSERT INTO capacity(at,total,used,free,indexed,reason) VALUES (?,?,?,?,?,?)",
                       (now - d * DAY, total, u, total - u, lib - d * int(0.0019 * total), "nightly"))
         gone = [("The Velvet Kingdom (2011)", 48.2, "movie", ["sam"], ["jordan"]), ("Saltmarsh · Season 3", 31.6, "season", [], ["riley"]),
                 ("Electric Parade (1999)", 9.4, "movie", ["alex"], []), ("Hollow Verdict (2016)", 61.0, "movie", [], ["casey"])]
         for i, (label, gb, kind, viewers, req) in enumerate(gone):
+            if kind == "season":                          # a show's season lives under the show's folder
+                show = label.split(" · ")[0]
+                folder, files = f"/data/tv/{show}", [f"/data/tv/{show}/Season 03/{show} - S03E{e:02d}.mkv" for e in range(1, 9)]
+            else:
+                folder, files = f"/data/movies/{label}", [f"/data/movies/{label}/{label}.mkv"]
             c.execute("INSERT INTO deletions(at,kind,key,title_key,label,bytes,ok,plex,arr,meta) VALUES (?,?,?,?,?,?,?,?,?,?)",
                       (now - (i * 9 + 3) * DAY, kind, str(90000 + i), str(90000 + i), label, int(gb * GB), 1, "deleted", "unmonitored",
                        json.dumps({"viewers": [{"name": v, "plays": 2} for v in viewers], "requested": [{"name": r} for r in req],
-                                   "folder": f"/data/movies/{label}", "files": [f"/data/movies/{label}/{label}.mkv"]})))
+                                   "folder": folder, "files": files})))
         fours = [m for m in movies if m["media"][0]["res"] == "4k"][:2]
         for i, m in enumerate(fours):
             old = sum(p["size"] for p in m["media"][0]["parts"])

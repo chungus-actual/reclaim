@@ -3,13 +3,14 @@ services:
     build: .
     container_name: reclaim
     restart: unless-stopped
-    ports:
-      - "8892:8892"
+    ports:                     # RECLAIM_PORT (in .env or the shell) moves both sides
+      - "${RECLAIM_PORT:-8892}:${RECLAIM_PORT:-8892}"
     env_file:                  # optional: settings can all be made in the app
       - path: .env
         required: false
     environment:
       - TZ=${TZ:-UTC}          # the nightly rebuild runs at RECLAIM_REFRESH_HOUR in this zone
+      - RECLAIM_PORT=${RECLAIM_PORT:-8892}
     volumes:
       - ./config:/config       # database, cached snapshot, poster thumbnails
       # Optional: mount your media READ-ONLY so reclaim can find files Plex doesn't index.

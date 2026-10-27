@@ -1,5 +1,5 @@
 'use strict';
-/* reclaim — page logic. Data: /api/model (titles carry per-user play rows so the
+/* reclaim: page logic. Data: /api/model (titles carry per-user play rows so the
    "plays by" lens re-computes locally). Untrusted strings only ever reach the DOM
    through text nodes (h() below) or canvas fillText. */
 
@@ -38,7 +38,7 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 
-/* replaceChildren() stringifies null/false ("null" on screen) — always go through fill() */
+/* replaceChildren() stringifies null/false ("null" on screen), so always go through fill() */
 function fill(el, ...kids) {
   el.replaceChildren(...kids.flat(Infinity).filter(k => k != null && k !== false));
 }
@@ -60,7 +60,7 @@ function fmtAgo(ts) {
   return (d / 365.25).toFixed(1) + ' yr ago';
 }
 function fmtDate(ts) {
-  return ts ? new Date(ts * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+  return ts ? new Date(ts * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
 }
 const fmtN = n => (n || 0).toLocaleString();
 const plural = (n, w, p) => `${fmtN(n)} ${n === 1 ? w : (p || w + 's')}`;
@@ -214,6 +214,7 @@ async function loadModel() {
   recompute();
   renderBuilt();
   libEmpty();
+  loadCapacity();
 }
 
 async function loadShortlist(rows) {
@@ -257,7 +258,7 @@ function renderCapacity() {
   $('#heroSub').textContent = `of ${fmtB(a.total)} ${where} · ${pct(a.free, a.total)} free · ${fmtB(a.used)} used`;
   if (a.used < M.space.indexed * 0.95) {
     // the capacity source can't be the disk the media lives on: don't draw a bar that lies
-    $('#heroSub').textContent += ` — less than the ${fmtB(M.space.indexed)} Plex indexes, so the free-space folders in Settings don't seem to be on your media disks`;
+    $('#heroSub').textContent += `. That's less than the ${fmtB(M.space.indexed)} Plex indexes, so the free-space folders in Settings don't seem to be on your media disks`;
     const indexed = M.space.indexed + (M.space.unindexed || 0);
     return renderCapacityBar({ total: indexed, used: indexed, free: 0 }, where, false);
   }
@@ -302,10 +303,109 @@ function renderCapacityBar(a, where, hasFree) {
     { l: 'Not played in 3+ years', v: fmtB(byB[2] + byB[3] + byB[4]), s: `${fmtN(stale3.length)} titles incl. never` },
   ];
   if (loose != null) tiles.push({ l: 'On disk, not in Plex', v: fmtB(loose), s: `walked ${fmtAgo(M.walk_at)}` });
-  tiles.push({ l: 'Drop list', v: dropBytes ? fmtB(dropBytes) : '—', crit: dropBytes > 0,
+  tiles.push({ l: 'Drop list', v: dropBytes ? fmtB(dropBytes) : '0', crit: dropBytes > 0,
     s: !dropBytes ? 'nothing listed yet' : hasFree ? `→ ${fmtB(a.free + dropBytes)} free (${pct(a.free + dropBytes, a.total)})` : plural(shortlist.length, 'item') });
   fill($('#tiles'), ...tiles.map(t => h('div', { class: 'tile' },
     h('div', { class: 'l' }, t.l), h('div', { class: 'v' + (t.crit ? ' crit' : '') }, t.v), h('div', { class: 's' }, t.s))));
+}
+
+/* ------------------------------------------------- free space over time */
+// /api/capacity has one reading per rebuild or delete. Drawn as a de-emphasis area beside the
+// hero number (which is its latest point), with that latest point in the accent.
+let CAPH = [];
+const TREND = { w: 0, i: null };
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) if (v != null) el.setAttribute(k, v);
+  return el;
+}
+const REASONS = { nightly: 'nightly rebuild', manual: 'Refresh', startup: 'rebuild at start', 'after delete': 'after a delete',
+  'settings changed': 'settings changed', 'after downgrade': 'after a downgrade' };
+
+async function loadCapacity() {
+  try { CAPH = (await get('/api/capacity')).filter(r => r.free != null && r.total > 0); } catch { CAPH = []; }
+  renderTrend();
+}
+
+function renderTrend() {
+  const box = $('#trend');
+  // no free-space source, or one that isn't on the media disks (the hero says so): nothing to chart
+  box.hidden = !M || !M.array || M.array.used < M.space.indexed * 0.95;
+  if (box.hidden) return;
+  const w = box.clientWidth;
+  TREND.w = w;
+  if (!w) return;                          // the card is hidden; the ResizeObserver draws it when it shows
+  TREND.i = null;
+  const rows = CAPH;
+  if (rows.length < 2) {
+    fill(box, h('div', { class: 'trend-h' }, h('span', null, 'Free space over time')),
+      h('div', { class: 'trend-empty' }, 'Charted once two rebuilds have recorded the free space.'));
+    return;
+  }
+  const H = 64, top = 16, bottom = 1, left = 1, right = 7;
+  const first = rows[0], last = rows[rows.length - 1];
+  const t0 = first.at, t1 = last.at;
+  const ymax = Math.max(...rows.map(r => r.free)) * 1.08 || 1;
+  const x = t => left + (t1 > t0 ? (t - t0) / (t1 - t0) : 1) * (w - left - right);
+  const y = v => top + (1 - v / ymax) * (H - top - bottom);
+  const pts = rows.map(r => [x(r.at), y(r.free), r]);
+  const base = y(0);
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('');
+  const end = pts[pts.length - 1];
+  const svg = svgEl('svg', { viewBox: `0 0 ${w} ${H}`, width: w, height: H, tabindex: 0, role: 'img',
+    'aria-label': `Free space over time: ${fmtB(first.free)} on ${fmtDate(first.at)}, ${fmtB(last.free)} now, ${rows.length} readings. Arrow keys step through them.` });
+  const lab = svgEl('text', { class: 'lab', x: left, y: Math.max(11, pts[0][1] - 6).toFixed(1) });
+  lab.textContent = fmtB(first.free);
+  const xh = svgEl('line', { class: 'xhair', y1: top - 6, y2: base, visibility: 'hidden' });
+  const hov = svgEl('circle', { class: 'hov', r: 4, visibility: 'hidden' });
+  svg.append(
+    svgEl('line', { class: 'base', x1: left, x2: w - right, y1: base - 0.5, y2: base - 0.5 }),
+    svgEl('path', { class: 'area', d: `${line}L${end[0].toFixed(1)},${base}L${pts[0][0].toFixed(1)},${base}Z` }),
+    svgEl('path', { class: 'line', d: line }),
+    lab, xh,
+    svgEl('circle', { class: 'now', cx: end[0].toFixed(1), cy: end[1].toFixed(1), r: 4 }),
+    hov);
+
+  const show = (i, cx, cy) => {
+    const [px, py, r] = pts[i];
+    TREND.i = i;
+    xh.setAttribute('x1', px); xh.setAttribute('x2', px); xh.setAttribute('visibility', 'visible');
+    hov.setAttribute('cx', px); hov.setAttribute('cy', py); hov.setAttribute('visibility', 'visible');
+    tipAt(cx, cy,
+      h('div', { class: 'tv' }, `${fmtB(r.free)} free`),
+      h('div', { class: 'tn' }, `${fmtDate(r.at)}, ${new Date(r.at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`),
+      h('div', { class: 'tr' }, h('span', null, 'Used'), h('b', null, `${fmtB(r.used)} of ${fmtB(r.total)}`)),
+      r.reason ? h('div', { class: 'tr' }, h('span', null, 'Recorded'), h('b', null, REASONS[r.reason] || r.reason)) : null);
+  };
+  const hide = () => {
+    TREND.i = null;
+    xh.setAttribute('visibility', 'hidden'); hov.setAttribute('visibility', 'hidden');
+    hideTip();
+  };
+  const nearest = px => {                  // the crosshair snaps to the closest reading in time
+    let lo = 0, hi = pts.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m][0] < px) lo = m; else hi = m; }
+    return px - pts[lo][0] <= pts[hi][0] - px ? lo : hi;
+  };
+  const atPoint = i => { const rc = svg.getBoundingClientRect(); show(i, rc.left + pts[i][0], rc.top + pts[i][1]); };
+  svg.addEventListener('pointermove', ev => { const rc = svg.getBoundingClientRect(); show(nearest(ev.clientX - rc.left), ev.clientX, ev.clientY); });
+  svg.addEventListener('pointerleave', hide);
+  svg.addEventListener('focus', () => atPoint(pts.length - 1));
+  svg.addEventListener('blur', hide);
+  svg.addEventListener('keydown', ev => {
+    const step = { ArrowLeft: -1, ArrowRight: 1, Home: -pts.length, End: pts.length }[ev.key];
+    if (step == null) return;
+    ev.preventDefault();
+    atPoint(Math.max(0, Math.min(pts.length - 1, (TREND.i ?? pts.length - 1) + step)));
+  });
+
+  const d = last.free - first.free;
+  fill(box,
+    h('div', { class: 'trend-h' },
+      h('span', null, `Free space since ${fmtDate(first.at)}`),
+      h('span', { class: 'trend-d' }, Math.abs(d) < 1e9 ? 'about the same' : `${d < 0 ? 'down' : 'up'} ${fmtB(Math.abs(d))}`)),
+    svg);
 }
 
 /* --------------------------------------------------------- side bar lists */
@@ -475,8 +575,7 @@ function mapLeafAt(ev) {
 
 /* ---------------------------------------------------------------- tooltip */
 function showTip(ev, t) {
-  const tip = $('#tip');
-  const req = t.q.length ? [...new Set(t.q.map(q => userById.get(q[0])?.n || '?'))].join(', ') : '—';
+  const req = t.q.length ? [...new Set(t.q.map(q => userById.get(q[0])?.n || '?'))].join(', ') : '';
   const rows = [
     ['Last played', t._l ? `${fmtAgo(t._l)} (${fmtDate(t._l)})` : 'never'],
     ['Viewers', `${t._v}${lensLabel() === 'Everyone' ? '' : ' in lens'}`],
@@ -486,17 +585,22 @@ function showTip(ev, t) {
   ];
   if (!t.m) rows.splice(3, 0, ['Episodes seen', `${fmtN(t.es)} of ${fmtN(t.e)}`]);
   if (t.x) rows.push(['Not in Plex, same folder', fmtB(t.x)]);
-  fill(tip, 
+  tipAt(ev.clientX, ev.clientY,
     h('div', { class: 'tv' }, fmtB(t.z)),
     h('div', { class: 'tn' }, `${t.n}${t.y ? ` (${t.y})` : ''}${t.m ? '' : ' · TV'}`),
     ...rows.map(([k, v]) => h('div', { class: 'tr' }, h('span', null, k), h('b', null, v))),
     dropFull.has(t.k) ? h('div', { class: 'tr' }, h('span', null, 'On the drop list'), h('b', null, '✕')) : null,
   );
+}
+/* the shared tooltip, beside a point on screen and kept inside the window */
+function tipAt(cx, cy, ...kids) {
+  const tip = $('#tip');
+  fill(tip, ...kids);
   tip.hidden = false;
   const pad = 14, tw = tip.offsetWidth, th = tip.offsetHeight;
-  let x = ev.clientX + pad, y = ev.clientY + pad;
-  if (x + tw > innerWidth - 8) x = ev.clientX - tw - pad;
-  if (y + th > innerHeight - 8) y = ev.clientY - th - pad;
+  let x = cx + pad, y = cy + pad;
+  if (x + tw > innerWidth - 8) x = cx - tw - pad;
+  if (y + th > innerHeight - 8) y = cy - th - pad;
   tip.style.left = x + 'px'; tip.style.top = y + 'px';
 }
 function hideTip() { $('#tip').hidden = true; }
@@ -686,17 +790,17 @@ function rowEl(t, i) {
   return h('div', { class: `trow${sel.has(t.k) ? ' sel' : ''}${dropFull.has(t.k) ? ' drop' : ''}`, style: `top:${i * ROW_H}px`,
     onclick: e => { if (e.target.closest('input,button')) return; if (e.shiftKey || e.ctrlKey || e.metaKey) toggleSel(t.k); else openDetail(t.k); } },
     h('div', null, h('input', { type: 'checkbox', checked: sel.has(t.k), 'aria-label': `Select ${t.n}`, onchange: () => toggleSel(t.k) })),
-    h('div', null, h('button', { class: 'star' + (t.kp ? ' on' : ''), title: t.kp ? 'Kept — click to un-keep' : 'Keep (never suggest)',
+    h('div', null, h('button', { class: 'star' + (t.kp ? ' on' : ''), title: t.kp ? 'Kept. Click to un-keep' : 'Keep (never suggest)',
       onclick: () => setKeep([t.k], !t.kp) }, t.kp ? '★' : '☆')),
     h('div', { class: 't-name', title: t.n }, t.m ? null : h('span', { class: 'kind' }, 'TV'), t.n,
       h('span', { class: 'meta' }, [t.y, meta].filter(Boolean).join(' · '))),
     h('div', { class: 'n' }, fmtB(t.z), t.x ? h('span', { class: 'loose', title: 'Not in Plex, same folder' }, ` +${fmtB(t.x)}`) : null),
     h('div', null, h('span', { class: 'lp' }, h('i', { style: `background:var(--b${t._b})` }), t._l ? fmtAgo(t._l) : 'never')),
     h('div', { class: 'n' }, fmtN(t._v)), h('div', { class: 'n' }, fmtN(t._p)), h('div', { class: 'n' }, t._h ? t._h.toFixed(t._h < 10 ? 1 : 0) : '0'),
-    h('div', { class: 'tnum' }, t.a ? new Date(t.a * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : '—'),
-    h('div', { title: req }, req || h('span', { class: 'muted' }, '—')),
-    h('div', null, t.r || '—'),
-    h('div', null, t.ar ? h('span', { class: 'mon' + (t.ar[0] ? ' on' : ''), title: `${t.m ? 'Radarr' : 'Sonarr'}: ${t.ar[0] ? 'monitored' : 'unmonitored'} · ${t.ar[1] || ''}` }, t.ar[0] ? '● mon' : '○ off') : h('span', { class: 'muted', title: 'Not found in Radarr/Sonarr' }, '—')),
+    h('div', { class: 'tnum' }, t.a ? new Date(t.a * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''),
+    h('div', { title: req }, req),
+    h('div', null, t.r || ''),
+    h('div', null, t.ar ? h('span', { class: 'mon' + (t.ar[0] ? ' on' : ''), title: `${t.m ? 'Radarr' : 'Sonarr'}: ${t.ar[0] ? 'monitored' : 'unmonitored'} · ${t.ar[1] || ''}` }, t.ar[0] ? '● mon' : '○ off') : h('span', { class: 'muted', title: 'Not found in Radarr/Sonarr' }, '')),
   );
 }
 
@@ -846,17 +950,17 @@ async function openDetail(key) {
         d.genres?.length ? h('div', { class: 'facts' }, d.genres.join(', ')) : null)),
     h('div', { class: 'd-actions' },
       listed
-        ? h('button', { class: 'btn', onclick: async () => { await removeDrop(listedRows.map(r => r.id)); openDetail(key); } }, '✓ On the drop list — remove')
+        ? h('button', { class: 'btn', onclick: async () => { await removeDrop(listedRows.map(r => r.id)); openDetail(key); } }, '✓ On the drop list · remove')
         : h('button', { class: 'btn danger', disabled: d.kept, onclick: async () => { await addToDrop([{ kind: d.kind, key }]); openDetail(key); } },
           `Add whole ${d.kind === 'movie' ? 'movie' : 'show'} to drop list · ${fmtB(d.size)}`),
-      h('button', { class: 'btn', onclick: () => setKeep([key], !d.kept) }, d.kept ? '★ Kept — un-keep' : '☆ Keep'),
+      h('button', { class: 'btn', onclick: () => setKeep([key], !d.kept) }, d.kept ? '★ Kept · un-keep' : '☆ Keep'),
     ),
     h('div', { class: 'path', style: 'margin-top:8px' }, d.folder || ''),
   ];
   if (d.arr) {
     kids.push(h('div', { class: 'callout info' },
       `${arrName}: ${d.arr.monitored ? 'monitored' : 'unmonitored'}${d.arr.profile ? ` · profile ${d.arr.profile}` : ''}`,
-      d.arr.monitored ? ' — deleting here also unmonitors it, so it stays listed as missing and is never re-grabbed.' : ''));
+      d.arr.monitored ? '. Deleting here also unmonitors it, so it stays listed as missing and is never re-grabbed.' : ''));
   } else kids.push(h('div', { class: 'callout' }, (M.arr.safety || {})[d.kind === 'movie' ? 'radarr' : 'sonarr'] === undefined
     ? `${arrName} isn't connected. Deleting removes the files; the Deleted tab keeps the record.`
     : `Not found in ${arrName}. Deleting removes it with no record outside the Deleted log.`));
@@ -880,7 +984,7 @@ async function openDetail(key) {
         h('td', null, s.title), h('td', { class: 'n' }, fmtB(s.size)), h('td', { class: 'n' }, fmtN(s.eps)),
         h('td', { class: 'n' }, fmtN(s.eps_seen)), h('td', { class: 'n', title: s.viewer_names.join(', ') }, fmtN(s.viewers)),
         h('td', { title: fmtDate(s.last) }, s.last ? fmtAgo(s.last) : 'never'),
-        h('td', null, s.monitored == null ? '—' : s.monitored ? 'mon' : 'off'),
+        h('td', null, s.monitored == null ? '' : s.monitored ? 'mon' : 'off'),
         h('td', null, listed || listedSeason.has(s.key) || !s.size ? null : h('button', { class: 'btn sm', title: 'Add this season to the drop list',
           onclick: async () => { await addToDrop([{ kind: 'season', key: s.key }]); openDetail(key); } }, '+ drop')), h('td', null, dgSeasonBtn(d, s))))));
     kids.push(dgShowControls(d));
@@ -899,7 +1003,7 @@ async function openDetail(key) {
           h('td', null, [v.res, v.vcodec, v.acodec].filter(Boolean).join(' · '), isTracked ? h('span', { class: 'badge', style: 'margin-left:6px' }, 'Radarr tracks this') : null,
             h('div', { class: 'path' }, v.files.join('\n'))),
           h('td', { class: 'n' }, fmtB(v.bytes)),
-          h('td', null, listed || listedV.has(`${key}:${v.id}`) ? null : h('button', { class: 'btn sm', title: isTracked ? 'Radarr tracks this file — it would show the movie as missing' : 'Drop just this version',
+          h('td', null, listed || listedV.has(`${key}:${v.id}`) ? null : h('button', { class: 'btn sm', title: isTracked ? 'Radarr tracks this file, so it would show the movie as missing' : 'Drop just this version',
             onclick: async () => { await addToDrop([{ kind: 'version', title_key: key, media_id: v.id }]); openDetail(key); } }, '+ drop')));
       })));
   }
@@ -973,7 +1077,7 @@ function dgMovieSection(d) {
     h('h4', null, 'Downgrade'),
     dgJobsFor(d.key),
     !d.arr ? h('div', { class: 'muted' }, `Not in ${app}, so it can't be swapped for a smaller release.`)
-      : !tiers.length ? h('div', { class: 'muted' }, `Already ${d.res || 'low resolution'} — nothing smaller to aim for.`)
+      : !tiers.length ? h('div', { class: 'muted' }, `Already ${d.res || 'low resolution'}, nothing smaller to aim for.`)
         : h('div', { class: 'd-actions', style: 'margin-top:0' },
           ...tiers.map(x => h('button', { class: 'btn', onclick: () => dgStart(d.key, x, null) }, `Find ${x}p releases`)),
           d.versions?.length > 1 ? h('span', { class: 'muted', style: 'font-size:12px' }, `Radarr swaps only the file it tracks; the other ${d.versions.length - 1} version(s) stay.`) : null),
@@ -988,7 +1092,7 @@ function dgShowControls(d) {
     h('h4', null, 'Downgrade'),
     dgJobsFor(d.key),
     !d.arr ? h('div', { class: 'muted' }, "Not in Sonarr, so it can't be swapped for smaller releases.")
-      : !tiers.length ? h('div', { class: 'muted' }, `Mostly ${dom || 'low resolution'} already — use the ↓ on a season if one is bigger.`)
+      : !tiers.length ? h('div', { class: 'muted' }, `Mostly ${dom || 'low resolution'} already. Use the ↓ on a season if one is bigger.`)
         : h('div', { class: 'd-actions', style: 'margin-top:0' },
           ...tiers.map(x => h('button', { class: 'btn', onclick: () => dgStart(d.key, x, null) }, `Plan whole show ↓${x}p`)),
           h('span', { class: 'muted', style: 'font-size:12px' }, `Sonarr searches each season (~2 min each, ${d.seasons.filter(s => s.size && s.index > 0).length} seasons).`)),
@@ -1065,15 +1169,15 @@ function renderPart(job, p, i, selKey) {
     h('td', null, radio(c)),
     h('td', { class: 'dg-rel' },
       h('div', null, h('b', null, c.quality), c.recommended ? h('span', { class: 'badge', style: 'margin-left:6px' }, 'pick') : null,
-        c.edition ? h('span', { class: 'badge', style: 'margin-left:6px', title: 'Edition — compare with what you have' }, c.edition) : null,
-        c.multi ? h('span', { class: 'badge', style: 'margin-left:6px', title: 'Several audio languages — check which track plays by default' }, c.languages.length > 1 ? c.languages.join('+') : 'multi-audio') : null),
+        c.edition ? h('span', { class: 'badge', style: 'margin-left:6px', title: 'Edition: compare with what you have' }, c.edition) : null,
+        c.multi ? h('span', { class: 'badge', style: 'margin-left:6px', title: 'Several audio languages: check which track plays by default' }, c.languages.length > 1 ? c.languages.join('+') : 'multi-audio') : null),
       h('div', { class: 'path', title: c.title }, c.title),
       h('div', { class: 'muted', style: 'font-size:11px' }, [c.indexer, c.age_days != null ? `${c.age_days} days old` : null].filter(Boolean).join(' · ')),
       ...c.warnings.map(w => h('div', { class: 'muted', style: 'font-size:11px' }, '⚠ ' + w)),
       ...c.blockers.map(b => h('div', { class: 'res-bad', style: 'font-size:11px' }, '✕ ' + b))),
     h('td', { class: 'n' }, fmtB(c.size)),
-    h('td', { class: 'n' }, c.saves > 0 ? `−${fmtB(c.saves)}` : '—', h('div', { class: 'muted' }, c.saves > 0 ? `${Math.round(100 * c.saves_pct)}%` : '')),
-    h('td', { class: 'n', title: 'MB per minute of runtime' }, c.mbpm ?? '—'));
+    h('td', { class: 'n' }, c.saves > 0 ? `−${fmtB(c.saves)}` : '', h('div', { class: 'muted' }, c.saves > 0 ? `${Math.round(100 * c.saves_pct)}%` : '')),
+    h('td', { class: 'n', title: 'MB per minute of runtime' }, c.mbpm ?? ''));
   const showAll = DG.sel.get(selKey + ':all');
   const visible = showAll ? cands : ok.slice(0, 12);
   return h('div', { class: 'dg-part' },
@@ -1124,7 +1228,7 @@ function dgConfirm(job, picks) {
     h('ul', { class: 'ink2', style: 'font-size:13px;padding-left:18px' },
       h('li', null, `${app} downloads ${picks.length > 1 ? 'these' : 'this'}. Nothing changes until it finishes.`),
       h('li', null, `On import ${app} replaces the current ${whole ? 'episode files' : 'file'} and deletes ${whole ? 'them' : 'it'} (no recycle bin).`),
-      h('li', null, `The ${whole ? 'series' : 'movie'} moves to the "Reclaim ↓${job.target}p" profile with upgrades off, so it can't drift back up${whole ? ' — new episodes also come in at ' + job.target + 'p' : ''}. If the download fails or you cancel, the original profile comes back.`)),
+      h('li', null, `The ${whole ? 'series' : 'movie'} moves to the "Reclaim ↓${job.target}p" profile with upgrades off, so it can't drift back up${whole ? ', and new episodes also come in at ' + job.target + 'p' : ''}. If the download fails or you cancel, the original profile comes back.`)),
     h('div', { class: 'modal-actions' }, h('button', { class: 'btn', onclick: () => { modal.hidden = true; } }, 'Cancel'), go)));
   modal.hidden = false;
 }
@@ -1291,7 +1395,7 @@ async function renderSettings(reload) {
   const first = d.summary.needs_setup;
   fill(el,
     first ? h('div', { class: 'card welcome' }, h('h2', null, 'Welcome to reclaim'),
-      h('p', null, 'Connect your Plex server to get started — “Sign in with Plex” is the quickest way. Everything else is optional and can be added any time.')) : null,
+      h('p', null, 'Connect your Plex server to get started. “Sign in with Plex” is the quickest way. Everything else is optional and can be added any time.')) : null,
     ...d.groups.map(groupCard),
     h('div', { class: 'set-save' },
       h('span', { class: 'muted', id: 'setMsg' }, dirtyText()),
@@ -1342,7 +1446,7 @@ function fieldEl(f) {
     const cleared = SET.clear.has(f.key);
     input = h('div', { class: 'set-row' },
       h('input', { type: 'password', autocomplete: 'new-password', disabled: locked, value: SET.edits[f.key] || '',
-        placeholder: locked ? 'set in the environment' : f.set && !cleared ? '•••••••• saved — type to replace' : (cleared ? 'will be cleared on save' : f.placeholder || ''),
+        placeholder: locked ? 'set in the environment' : f.set && !cleared ? '•••••••• saved, type to replace' : (cleared ? 'will be cleared on save' : f.placeholder || ''),
         oninput: e => { set(e.target.value); SET.clear.delete(f.key); } }),
       f.set && !locked && !cleared ? h('button', { class: 'btn sm ghost', title: 'Remove the saved value',
         onclick: () => { SET.clear.add(f.key); delete SET.edits[f.key]; markDirty(); renderSettings(); } }, 'Clear') : null);
@@ -1362,7 +1466,7 @@ function fieldEl(f) {
   }
   return h('div', { class: 'set-field' + (f.kind === 'bool' ? ' inline' : '') },
     h('div', { class: 'set-label' }, f.label,
-      locked ? h('span', { class: 'badge', style: 'margin-left:6px', title: `Set by the ${f.locked} environment variable — change it there.` }, `from ${f.locked}`) : null),
+      locked ? h('span', { class: 'badge', style: 'margin-left:6px', title: `Set by the ${f.locked} environment variable. Change it there.` }, `from ${f.locked}`) : null),
     input,
     f.help ? h('div', { class: 'set-help' }, f.help) : null,
     SET.errors?.[f.key] ? h('div', { class: 'set-line error' }, h('span', { class: 'ic' }, '✕'), h('span', null, SET.errors[f.key])) : null);
@@ -1450,7 +1554,7 @@ async function plexSignIn() {
         SET.plex = { error: 'The Plex window was closed before reclaim was approved.' }; renderSettings(); return;
       }
     }
-    SET.plex = { error: 'Sign-in timed out — try again.' }; renderSettings();
+    SET.plex = { error: 'Sign-in timed out. Try again.' }; renderSettings();
   } catch (e) {
     try { win && win.close(); } catch {}
     SET.plex = { error: e.message }; renderSettings();
@@ -1467,7 +1571,7 @@ function plexPicker() {
   const fillCon = () => fill(conSel, ...servers[si].connections.map((c, i) =>
     h('option', { value: i }, `${c.uri}${c.local ? ' · local' : ' · remote'}${c.relay ? ' · relay' : ''}`)));
   const srvSel = h('select', { onchange: e => { si = +e.target.value; fillCon(); } },
-    ...servers.map((s, i) => h('option', { value: i }, s.owned ? s.name : `${s.name} (shared with you — history and deleting need the owner)`)));
+    ...servers.map((s, i) => h('option', { value: i }, s.owned ? s.name : `${s.name} (shared with you: history and deleting need the owner)`)));
   fillCon();
   return h('div', { class: 'callout info' },
     h('div', null, 'Signed in. Pick the server and the address reclaim should use (a local address is best):'),
@@ -1491,7 +1595,7 @@ async function saveSettings() {
   const wasSetup = SET.data.summary.needs_setup;
   SET.data = j; SET.edits = {}; SET.clear.clear(); SET.errors = null;
   try { CFG = await get('/api/config'); } catch {}
-  toast(j.rebuilding ? 'Saved — rebuilding the library (about a minute for a big one)' : 'Saved');
+  toast(j.rebuilding ? 'Saved. Rebuilding the library (about a minute for a big one)' : 'Saved');
   renderSettings();
   if (j.rebuilding) { STATUS.refreshing = true; renderBuilt(); setTimeout(pollStatus, 1500); }
   if (wasSetup && !j.summary.needs_setup) setTimeout(() => showTab('library'), 600);
@@ -1501,7 +1605,7 @@ async function saveSettings() {
 const LOOSE_PAGE = 200;
 const dispPath = showPath;
 function walkBtn() {
-  return h('button', { class: 'btn sm', onclick: async e => { e.target.disabled = true; await post('/api/walk/run'); toast('Walking — the tab updates when it finishes'); } }, 'Walk now');
+  return h('button', { class: 'btn sm', onclick: async e => { e.target.disabled = true; await post('/api/walk/run'); toast('Walking. The tab updates when it finishes'); } }, 'Walk now');
 }
 // Not-in-Plex selection: path -> {size, cat, folder, root, titled}. Outlives repaints and tab switches.
 const LOOSE = { sel: new Map() };
@@ -1640,7 +1744,7 @@ async function renderLoose() {
       h('span', { class: 'note' }, `walked ${fmtAgo(d.walk_at)} (${fmtDate(d.walk_at)})`), CFG.walk === 'local' ? walkBtn() : null),
     h('div', { class: 'cat-tiles' }, ...cats.map(([c, v]) => h('div', { class: 'tile' },
       h('div', { class: 'l' }, v.label), h('div', { class: 'v' }, fmtB(v.bytes)), h('div', { class: 's' }, plural(v.files, 'file'))))),
-    d.missing_on_disk ? h('div', { class: 'callout info' }, `${d.missing_on_disk} indexed files weren't seen by the walk — files deleted since the walk, a Disk walk folder mapping that doesn't cover them, or (over SMB) names Windows can't represent, which show up as 8.3 aliases like DR0ON7~D.`) : null,
+    d.missing_on_disk ? h('div', { class: 'callout info' }, `${d.missing_on_disk} indexed files weren't seen by the walk: files deleted since the walk, a Disk walk folder mapping that doesn't cover them, or (over SMB) names Windows can't represent, which show up as 8.3 aliases like DR0ON7~D.`) : null,
     d.extras?.files ? h('div', { class: 'callout info' }, `Plex has indexed ${plural(d.extras.files, 'file')} (${fmtB(d.extras.bytes)}) as extras: featurettes, trailers, deleted scenes and the like. They're in Plex, so they aren't listed here; each title's details show its own.`) : null,
     toolbar, head, body, bar));
 }
@@ -1785,7 +1889,7 @@ async function renderLog() {
         h('td', null, r.label, h('div', { class: 'path' }, r.meta.folder || '')),
         h('td', { class: 'n' }, fmtB(r.bytes)),
         h('td', null, (r.meta.viewers || []).map(v => `${v.name} (${v.plays})`).join(', ') || 'no one'),
-        h('td', null, (r.meta.requested || []).map(v => v.name).join(', ') || '—'),
+        h('td', null, (r.meta.requested || []).map(v => v.name).join(', ')),
         h('td', null, h('span', { class: r.ok ? 'res-ok' : 'res-bad' }, r.ok ? '✓ ' : '✗ '), [r.plex, r.arr].filter(Boolean).join(' · ')))))
       : h('div', { class: 'empty' }, 'Nothing deleted through reclaim yet.')));
 }
@@ -1846,6 +1950,7 @@ async function boot() {
     }
   });
   let rt; new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(() => { if (M) { drawMap(); drawScatter(); paintRows(); } }, 80); }).observe($('main'));
+  new ResizeObserver(() => { if ($('#trend').clientWidth !== TREND.w) renderTrend(); }).observe($('#trend'));
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (M) redrawMarks(); });
   await loadShortlist();
   await loadDowngrades();

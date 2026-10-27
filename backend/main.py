@@ -1,6 +1,6 @@
-"""reclaim — see what your Plex library costs on disk, and reclaim it.
+"""reclaim: see what your Plex library costs on disk, and reclaim it.
 
-Run: uvicorn main:app --host 0.0.0.0 --port 8892
+Run: python main.py   (listens on RECLAIM_HOST:RECLAIM_PORT, default 0.0.0.0:8892)
 """
 import asyncio
 import base64
@@ -13,6 +13,11 @@ import logging
 import secrets
 import time
 import uuid
+import warnings
+
+# run as `python main.py`, this module is __main__, where Python shows DeprecationWarnings that the
+# uvicorn CLI never did; FastAPI's on_event still works, so keep the start log as it was
+warnings.filterwarnings("ignore", message=r"\s*on_event is deprecated", category=DeprecationWarning)
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
@@ -678,7 +683,7 @@ async def _dg_run_search(job, t):
 async def dg_search_get(sid: str):
     job = S.searches.get(sid)
     if not job:
-        raise HTTPException(404, "search expired — run it again")
+        raise HTTPException(404, "search expired, run it again")
     return job
 
 
@@ -702,7 +707,7 @@ async def dg_grab(request: Request):
     body = await request.json()
     job = S.searches.get(body.get("search_id"))
     if not job:
-        raise HTTPException(404, "search expired — run it again")
+        raise HTTPException(404, "search expired, run it again")
     replace = job.get("mode") == "replace"
     if replace:
         # stands in for the Plex title a replacement doesn't have (yet)
@@ -715,8 +720,8 @@ async def dg_grab(request: Request):
     async with S.dg_lock:
         active = store.downgrades("app=? AND item_id=? AND state='grabbed'", app_, item)
         if any(a["target"] != job["target"] for a in active):
-            raise HTTPException(409, f"a ↓{active[0]['target']}p downgrade is still running for this title — "
-                                     "let it finish or cancel it first")
+            raise HTTPException(409, f"a ↓{active[0]['target']}p downgrade is still running for this title. "
+                                     "Let it finish or cancel it first")
         inst = (await S.src.arr_instances())[app_]
         pid = await D.ensure_profile(S.src, inst, job["target"])
         cur, orig = await _dg_profile_state(inst, app_, item)
@@ -732,7 +737,7 @@ async def dg_grab(request: Request):
                 continue
             if time.time() - part.get("searched", 0) > 25 * 60:
                 results.append({"label": label, "ok": False,
-                                "error": "search is over 25 min old (the arr forgets results at 30) — search again"})
+                                "error": "search is over 25 min old (the arr forgets results at 30). Search again"})
                 continue
             if any(a["season"] == part["season"] for a in active):
                 results.append({"label": label, "ok": False, "error": "already downgrading"})
@@ -871,3 +876,8 @@ app.mount("/static", StaticFiles(directory=C.APP_DIR / "static"), name="static")
 @app.get("/")
 async def index():
     return FileResponse(C.APP_DIR / "static" / "index.html", headers={"Cache-Control": "no-cache"})
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host=C.HOST, port=C.PORT, workers=1)

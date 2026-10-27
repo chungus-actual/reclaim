@@ -29,11 +29,12 @@ for _p in (os.environ.get("RECLAIM_ENV_FILE"), ROOT / ".env", "/config/.env"):
     if _p and Path(_p).is_file():
         _load_env_file(Path(_p))
 
-# bootstrap-only: where state lives and which port uvicorn binds (not editable in the app)
+# bootstrap-only: where state lives and where `python main.py` listens (not editable in the app)
 DATA_DIR = Path(os.environ.get("RECLAIM_DATA", str(ROOT / "data")).strip())
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 SETTINGS_FILE = DATA_DIR / "settings.json"
 PORT = int(os.environ.get("RECLAIM_PORT", "8892"))
+HOST = os.environ.get("RECLAIM_HOST", "0.0.0.0").strip() or "0.0.0.0"
 
 # key -> (attribute, kind, default, extra env names)
 # kinds: url, str, secret, bool, int, list (comma separated), pairs (a=b, comma separated), password
